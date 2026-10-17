@@ -274,6 +274,7 @@ The README must include:
 - Add `docs/ai-usage.md`: tool, source (URL or product), purpose, representative prompts, and **token total per tool**.
 - Header-comment every file a model generated or debugged, tests included.
 - This planning pair (`iteration-1-guidelines.md`, `mvp-task-breakdown.md`) was drafted with Cursor using Grok 4.7 on 2026-10-16. Record that session's token total once Cursor's usage view shows it.
+- Agents follow `.cursor/skills/cvnstack-code-change/` and `.cursor/skills/cvnstack-ai-documentation/`. Attribution stays in the header and in `docs/ai-usage.md`. Do not add an agent account as a collaborator.
 
 ### 15. [Branch protection and the iteration-1 tag](https://github.com/zk2343-lab/CVNStack/issues/15)
 

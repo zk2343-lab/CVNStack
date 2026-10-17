@@ -110,6 +110,8 @@ Mark every AI-generated or AI-debugged file, including tests, even if a person e
 
 Token totals are required. The course is collecting them to request university-supplied tokens next year.
 
+The running log is [ai-usage.md](ai-usage.md). Agents that edit this repository follow `.cursor/skills/` so the header mark and the log stay in the same shape. Do not add an agent account as a repository collaborator; the log and the header are the attribution.
+
 ## Submission
 
 One team member submits the GitHub repository URL. Grading uses the tagged `main` commit that was last updated before the deadline. Other branches do not count.

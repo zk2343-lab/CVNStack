@@ -1,0 +1,20 @@
+# Build output
+target/
+
+# Local secrets
+.env
+.env.*
+
+# IDE and OS files
+.idea/
+*.iml
+.vscode/
+*.classpath
+*.project
+.settings/
+.DS_Store
+
+# Cursor session state. Shared agent skills stay tracked.
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
