@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   AI-assisted.
-  Parent reactor for the waitlist service. Declares the test and quality
-  tools every module inherits. Shared modules are added in issue 17.
+  Single-module Waitlist Management Service. Application services, module
+  classes, models, repositories, and error types live under src/main/java.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -17,15 +17,10 @@
   </parent>
 
   <groupId>edu.columbia.cvnstack</groupId>
-  <artifactId>cvnstack-parent</artifactId>
+  <artifactId>cvnstack</artifactId>
   <version>0.1.0-SNAPSHOT</version>
-  <packaging>pom</packaging>
   <name>CVNStack</name>
   <description>Waitlist Management Service</description>
-
-  <modules>
-    <module>modules/waitlist-app</module>
-  </modules>
 
   <properties>
     <java.version>21</java.version>
@@ -35,6 +30,10 @@
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -68,6 +67,10 @@
         </configuration>
       </plugin>
       <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
         <version>${jacoco.version}</version>
@@ -92,7 +95,7 @@
         <artifactId>maven-checkstyle-plugin</artifactId>
         <version>3.6.0</version>
         <configuration>
-          <configLocation>${maven.multiModuleProjectDirectory}/config/checkstyle/checkstyle.xml</configLocation>
+          <configLocation>${project.basedir}/config/checkstyle/checkstyle.xml</configLocation>
           <includeTestSourceDirectory>true</includeTestSourceDirectory>
           <consoleOutput>true</consoleOutput>
           <failsOnError>true</failsOnError>

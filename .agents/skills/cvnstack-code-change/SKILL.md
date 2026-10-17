@@ -22,8 +22,8 @@ Do the issue in front of you. Read that GitHub issue before editing. Contracts l
 
 ## Rules that are easy to miss
 
-- Java 21, Spring Boot 3, Maven. `modules/waitlist-app` is the only process that starts.
-- Dependencies point inward. `waitlist-domain` and `waitlist-api` have no JDBC, Redis, or Spring MVC.
+- Java 21, Spring Boot 3, Maven. Single module at the repo root (`src/main/java/com/cvnstack`).
+- Keep packages flat: `controller`, `service`, `model`, `error` only.
 - No production in-memory store. Mocks and fakes stay in unit tests. Testcontainers talk to PostgreSQL or Redis.
 - Header comment on every new type, tests included. The comment states the purpose. If you generated or debugged the file, add `AI-assisted` and nothing else about the session.
 - Indent 2 spaces. Line length 100. Ruleset: `config/checkstyle/checkstyle.xml`.

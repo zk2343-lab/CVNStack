@@ -67,3 +67,16 @@ Token totals come from the product's usage screen. If the screen has not been re
 
 - **Files.** `AGENTS.md`, `.agents/skills/cvnstack-ai-documentation/SKILL.md`, `.agents/skills/cvnstack-ai-documentation/reference.md`, `.agents/skills/cvnstack-code-change/SKILL.md`, this file.
 - **Tokens.** Included in the Cursor total above. Not re-read for this turn alone.
+
+### Issues 11, 17, 2, 13 — modules, errors, Checkstyle, README
+
+- **Completed.** 2026-10-17 (local branch; awaiting sign-off before commit)
+- **Purpose.** Shared Maven modules with domain types/ports and pure ranking/estimate/transitions; API error codes, `ErrorResponse`, and `@ControllerAdvice`; clean Checkstyle reports under `reports/checkstyle/`; README/API docs aligned with the CVNStack proposal and MVP deviations.
+- **Prompt.**
+
+  > pull in latest change, work in a seperate local feature rbanch https://github.com/zk2343-lab/CVNStack/issues/11 https://github.com/zk2343-lab/CVNStack/issues/17 and https://github.com/zk2343-lab/CVNStack/issues/2
+  > https://github.com/zk2343-lab/CVNStack/issues/13
+  >
+  > Remmeber to reference from our project design file Waitlist-Management-Service-CVNStack-Proposal (1).pdf . don't commit your changes - wait for my final sign off
+- **Files.** `pom.xml`, `README.md`, `src/main/java/com/cvnstack/{service,model,error}/`, `src/test/...`, `reports/checkstyle/`, `.agents/skills/cvnstack-code-change/`, `AGENTS.md`, this file.
+- **Tokens.** not yet read from the product usage screen

@@ -8,7 +8,7 @@ This file is the policy for every coding agent. Task skills live in `.agents/ski
 
 Read the GitHub issue before editing. Do that issue only. If a listed dependency is not in the tree, stop and name the missing issue. Module boundaries, status codes, and stores are in `.agents/skills/cvnstack-code-change/reference.md`.
 
-Java 21, Spring Boot 3, Maven. `modules/waitlist-app` is the only process that starts until issue 17. Dependencies point inward. No production in-memory store. Libraries come from Maven.
+Java 21, Spring Boot 3, Maven. Single module at the repository root under `com.cvnstack` (`controller`, `service`, `model`, `error`). No production in-memory store. Libraries come from Maven.
 
 Header comment on every new type, tests included: one sentence of purpose.
 
