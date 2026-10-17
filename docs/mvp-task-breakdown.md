@@ -98,7 +98,7 @@ Ding's domain pull request and Yoongu's error-handler pull request both start as
 
 Titles match the GitHub issues on the project board.
 
-### 1. Scaffold the Spring Boot project
+### 1. [Scaffold the Spring Boot project](https://github.com/zk2343-lab/CVNStack/issues/1)
 
 **Owner:** Zengxiaoran Kang  
 **Blocks:** everything else
@@ -109,7 +109,7 @@ Titles match the GitHub issues on the project board.
 - `.gitignore` for `target/`, IDE files, and `.env`.
 - README stub that says how to build and run, and points at this breakdown. Full API documentation is a later issue.
 
-### 2. Shared error responses
+### 2. [Shared error responses](https://github.com/zk2343-lab/CVNStack/issues/2)
 
 **Owner:** Yoongu Kang  
 **Depends on:** 1
@@ -118,7 +118,7 @@ Titles match the GitHub issues on the project board.
 - DTO for `{ error, message }`.
 - Unit test the handler with `MockMvc` or a direct call. No endpoint logic in this pull request.
 
-### 3. Domain model and in-memory store
+### 3. [Domain model and in-memory store](https://github.com/zk2343-lab/CVNStack/issues/3)
 
 **Owner:** Ding Wang  
 **Depends on:** 1
@@ -130,7 +130,7 @@ Titles match the GitHub issues on the project board.
 - Repository interfaces and a thread-safe in-memory implementation. Waitlist name uniqueness lives here or in the service, consistently.
 - Unit tests for ranking, estimate, transitions, and the repository. Mock the clock if tests would otherwise depend on `Instant.now()`.
 
-### 4. Create a waitlist — `POST /waitlists`
+### 4. [Create a waitlist — `POST /waitlists`](https://github.com/zk2343-lab/CVNStack/issues/4)
 
 **Owner:** Zengxiaoran Kang  
 **Depends on:** 2, 3
@@ -141,7 +141,7 @@ Failures: 400 for invalid input, 409 when the name exists.
 Side effect on success: one new waitlist and no entries. Failure writes nothing.  
 Unit-test the service with a mock repository.
 
-### 5. Add an entry — `POST /waitlists/{id}/entries`
+### 5. [Add an entry — `POST /waitlists/{id}/entries`](https://github.com/zk2343-lab/CVNStack/issues/5)
 
 **Owner:** Ding Wang  
 **Depends on:** 2, 3
@@ -152,7 +152,7 @@ Failures: 404 unknown waitlist, 400 invalid body, 422 at capacity. Count only en
 Side effect: one new waiting entry. Later positions follow the ranking rules.  
 Unit-test the service with a mock repository, including the capacity failure.
 
-### 6. Read an entry — `GET /waitlists/{id}/entries/{entryId}`
+### 6. [Read an entry — `GET /waitlists/{id}/entries/{entryId}`](https://github.com/zk2343-lab/CVNStack/issues/6)
 
 **Owner:** Yoongu Kang  
 **Depends on:** 2, 3
@@ -163,7 +163,7 @@ Position and estimate are null unless status is `WAITING`.
 No writes. Two identical gets both succeed and can disagree if a mutation landed between them.  
 Unit-test position math through the service, with a mock repository.
 
-### 7. Serve the next entry — `POST /waitlists/{id}/serve-next`
+### 7. [Serve the next entry — `POST /waitlists/{id}/serve-next`](https://github.com/zk2343-lab/CVNStack/issues/7)
 
 **Owner:** Zengxiaoran Kang  
 **Depends on:** 4, 5
@@ -174,7 +174,7 @@ The selection and the status change are one synchronized step so two overlapping
 Side effect: that entry leaves the waiting order, so later estimates shrink. An empty or missing waitlist writes nothing.  
 Unit-test tie-breaking and the empty-queue case with a mock repository.
 
-### 8. Update an entry — `PATCH /waitlists/{id}/entries/{entryId}`
+### 8. [Update an entry — `PATCH /waitlists/{id}/entries/{entryId}`](https://github.com/zk2343-lab/CVNStack/issues/8)
 
 **Owner:** Ding Wang  
 **Depends on:** 5
@@ -187,7 +187,7 @@ Setting the same status or priority again returns 200 and does not invent a new 
 Priority changes reorder waiting entries. Moving to `SERVED` or `CANCELLED` clears position and estimate. Do not update rolling averages in this iteration.  
 Unit-test the allowed and rejected transitions.
 
-### 9. Remove an entry — `DELETE /waitlists/{id}/entries/{entryId}`
+### 9. [Remove an entry — `DELETE /waitlists/{id}/entries/{entryId}`](https://github.com/zk2343-lab/CVNStack/issues/9)
 
 **Owner:** Yoongu Kang  
 **Depends on:** 5
@@ -197,7 +197,7 @@ Success: 200 with `{ "message": "Entry successfully removed", "entryId", "waitli
 Side effect: active depth drops, and waiting entries behind it move up. Failure writes nothing.  
 Unit-test the service with a mock repository.
 
-### 10. API test suite
+### 10. [API test suite](https://github.com/zk2343-lab/CVNStack/issues/10)
 
 **Owner:** Yoongu Kang  
 **Depends on:** 4–9 (the collection can be sketched earlier against this document)
@@ -212,7 +212,7 @@ Cover at least:
 
 Fix the product bugs these tests find. Leave a note in the pull request for any failure that is still open.
 
-### 11. Checkstyle clean report
+### 11. [Checkstyle clean report](https://github.com/zk2343-lab/CVNStack/issues/11)
 
 **Owner:** Zengxiaoran Kang  
 **Depends on:** the code that will be tagged
@@ -221,7 +221,7 @@ Fix the product bugs these tests find. Leave a note in the pull request for any 
 - `mvn checkstyle:check` passes on main application and test sources.
 - Commit the text or XML report under `reports/checkstyle/`. The committed report must match the tagged commit.
 
-### 12. Branch coverage report
+### 12. [Branch coverage report](https://github.com/zk2343-lab/CVNStack/issues/12)
 
 **Owner:** Yoongu Kang, with gaps fixed by whoever owns the uncovered code  
 **Depends on:** 10
@@ -230,7 +230,7 @@ Fix the product bugs these tests find. Leave a note in the pull request for any 
 - Commit the report under `reports/jacoco/`.
 - Branch coverage at least 55% on the tagged tree. If it is short, add tests on the thin spots (state machine and error paths first) rather than excluding packages to move the number.
 
-### 13. README and API documentation
+### 13. [README and API documentation](https://github.com/zk2343-lab/CVNStack/issues/13)
 
 **Owner:** Zengxiaoran Kang coordinates. Each person documents the endpoints they implemented.  
 **Depends on:** 4–9
@@ -246,7 +246,7 @@ The README must include:
 - Link to the project board.
 - The deviations listed at the top of this file.
 
-### 14. AI usage log and in-code marks
+### 14. [AI usage log and in-code marks](https://github.com/zk2343-lab/CVNStack/issues/14)
 
 **Owner:** Zengxiaoran Kang  
 **Ongoing; finish before the tag**
@@ -255,7 +255,7 @@ The README must include:
 - Header-comment every file a model generated or debugged, tests included.
 - This planning pair (`iteration-1-guidelines.md`, `mvp-task-breakdown.md`) was drafted with Cursor using Grok 4.7 on 2026-10-16. Record that session's token total once Cursor's usage view shows it.
 
-### 15. Branch protection and the iteration-1 tag
+### 15. [Branch protection and the iteration-1 tag](https://github.com/zk2343-lab/CVNStack/issues/15)
 
 **Owner:** Zengxiaoran Kang  
 **Last**
