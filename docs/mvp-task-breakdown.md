@@ -90,11 +90,11 @@ Header comment on every non-trivial type, including tests: purpose, and `AI-assi
 
 | Owner | Focus |
 | --- | --- |
-| Zengxiaoran Kang | Application skeleton, shared-module reactor, create-waitlist, serve-next, GCP stack, Checkstyle, README coordination, AI log, release tag and branch protection |
-| Ding Wang | Shared domain module, PostgreSQL module, DB/cache consistency, add-entry, update-entry, and the unit tests for that logic |
-| Yoongu Kang | Shared API module and error contract, Redis module, get-entry, delete-entry, the REST Assured suite, and the coverage report |
+| Zengxiaoran Kang | Platform path: scaffold, shared contracts, error handler, GCP and Compose, app wiring, Checkstyle, coverage report, README, AI log, release tag |
+| Ding Wang | Write path: domain rules, PostgreSQL, create-waitlist, add-entry, update-entry, delete-entry, and the tests for that path |
+| Yoongu Kang | Read path: Redis, get-entry, serve-next, and the API tests for that path |
 
-The shared-module reactor lands right after the scaffold. Domain and API modules start from that. Endpoint work starts when both modules are on `main`. PostgreSQL and Redis start once the domain ports exist, and the consistency pull request is what switches the running service off any temporary fake.
+After issue 17, Ding and Yoongu do not wait on each other. Each path owns its module and the endpoints on that module. The only shared gate is issue 17 (entities, port interfaces, and the pure ordering, estimate, and transition functions). Issue 20 is the one place the two stores are wired together, and issue 21 can start from the scaffold.
 
 ## Issues
 
@@ -103,7 +103,7 @@ Titles match the GitHub issues on the project board.
 ### 1. [Scaffold the Spring Boot project](https://github.com/zk2343-lab/CVNStack/issues/1)
 
 **Owner:** Zengxiaoran Kang  
-**Blocks:** everything else
+**Blocks:** issue 17 only. GCP (issue 21) can start from this scaffold.
 
 - Maven project, Java 21, Spring Boot 3. A single bootable module is enough here; the split into shared modules is issue 17.
 - `GET /health` returns 200 so we can show the process is up before the waitlist API exists.
@@ -114,8 +114,10 @@ Titles match the GitHub issues on the project board.
 
 ### 2. [Shared API module and error responses](https://github.com/zk2343-lab/CVNStack/issues/2)
 
-**Owner:** Yoongu Kang  
-**Depends on:** 1, 17
+**Owner:** Zengxiaoran Kang  
+**Depends on:** 17
+
+This is part of the platform path. It does not block Ding's or Yoongu's endpoints. The error DTO itself is created in issue 17 so controllers can compile first.
 
 - Error codes and the `{ error, message }` DTO live in `modules/waitlist-api`, so a later client can depend on the same contract.
 - `@ControllerAdvice` in `waitlist-app` maps validation failures, missing resources, conflicts, capacity, and illegal transitions onto the status table above.
@@ -124,19 +126,22 @@ Titles match the GitHub issues on the project board.
 ### 3. [Shared domain module](https://github.com/zk2343-lab/CVNStack/issues/3)
 
 **Owner:** Ding Wang  
-**Depends on:** 1, 17
+**Depends on:** 17
 
-- `Waitlist`, `Entry`, `EntryStatus` in `modules/waitlist-domain`. No Spring, JDBC, or Redis in this module.
-- Ranking: priority descending, then insertion time ascending, only among `WAITING` entries.
-- Wait estimate from configured processing time. No history window.
-- State-machine method that accepts or rejects a transition. Do not bury the rules in a controller.
-- Repository and cache ports (interfaces) only. PostgreSQL and Redis implementations are issues 18 and 19. Waitlist name uniqueness is part of the repository port.
-- Unit tests for ranking, estimate, and transitions. Mock the clock if tests would otherwise depend on `Instant.now()`.
+Write path. Yoongu's read path does not wait on this issue. Entities and port interfaces arrive in issue 17; this pull request adds the write-side rules those ports rely on.
+
+- Use the ordering, estimate, and transition functions from issue 17. Do not add a second copy.
+- Capacity: only `WAITING` and `CALLED` entries count toward `maxLength`.
+- Waitlist name uniqueness is enforced through the repository port.
+- No Spring, JDBC, or Redis in this module. Issues 18 and 19 implement the ports.
+- Unit-test the capacity rule and a rejected call that goes through the transition function.
 
 ### 4. [Create a waitlist — `POST /waitlists`](https://github.com/zk2343-lab/CVNStack/issues/4)
 
-**Owner:** Zengxiaoran Kang  
-**Depends on:** 2, 3
+**Owner:** Ding Wang  
+**Depends on:** 3, 18
+
+Write path, same owner as the domain rules and PostgreSQL. Include this endpoint's REST Assured cases in this pull request.
 
 Body: `name`, `maxLength` (positive integer), `processingTimePerEntryMinutes` (positive integer).  
 Success: 200 and the new id, plus the settings that were stored.  
@@ -147,7 +152,9 @@ Unit-test the service with a mock repository.
 ### 5. [Add an entry — `POST /waitlists/{id}/entries`](https://github.com/zk2343-lab/CVNStack/issues/5)
 
 **Owner:** Ding Wang  
-**Depends on:** 2, 3
+**Depends on:** 3, 18
+
+Write path. Include this endpoint's REST Assured cases in this pull request.
 
 Body: `name` (non-blank), `priority` (1–5, default 1).  
 Success: 200 with entry id, status `WAITING`, position, and `estimatedWaitTimeMinutes`.  
@@ -158,7 +165,9 @@ Unit-test the service with a mock repository, including the capacity failure.
 ### 6. [Read an entry — `GET /waitlists/{id}/entries/{entryId}`](https://github.com/zk2343-lab/CVNStack/issues/6)
 
 **Owner:** Yoongu Kang  
-**Depends on:** 2, 3
+**Depends on:** 19
+
+Read path, same owner as Redis. Does not wait on the write-path pull requests. Include this endpoint's REST Assured cases here; issue 10 collects the read-path suite.
 
 No body. Success: 200 with `waitlistId`, `entryId`, `status`, `priority`, `position`, `estimatedWaitTimeMinutes`.  
 Position and estimate are null unless status is `WAITING`.  
@@ -168,12 +177,14 @@ Unit-test position math through the service, with a mock repository.
 
 ### 7. [Serve the next entry — `POST /waitlists/{id}/serve-next`](https://github.com/zk2343-lab/CVNStack/issues/7)
 
-**Owner:** Zengxiaoran Kang  
-**Depends on:** 4, 5
+**Owner:** Yoongu Kang  
+**Depends on:** 19
+
+Read path, with the Redis lock. Does not wait on create-waitlist or add-entry. Unit-test the claim through the cache port. Issue 20 is the later proof against PostgreSQL and Redis together.
 
 No body. Selects the first `WAITING` entry, sets `CALLED`, stores the call time, and returns 200 with id, status, and priority.  
 204 when nobody is waiting. 404 when the waitlist does not exist.  
-The selection and the status change are one step so two overlapping calls cannot claim the same entry. The lock and the conditional database update that make that true across processes are issue 20. This pull request defines the use case and tests it with a mock port.  
+The selection and the status change are one step so two overlapping calls cannot claim the same entry.  
 Side effect: that entry leaves the waiting order, so later estimates shrink. An empty or missing waitlist writes nothing.  
 Unit-test tie-breaking and the empty-queue case with a mock repository.
 
@@ -181,6 +192,8 @@ Unit-test tie-breaking and the empty-queue case with a mock repository.
 
 **Owner:** Ding Wang  
 **Depends on:** 5
+
+Write path. Include this endpoint's REST Assured cases in this pull request.
 
 Body may include `status`, `priority`, or both. At least one is required.  
 Success: 200 with the entry, position and estimate if it is still `WAITING`, and `updatedAt`.  
@@ -192,8 +205,10 @@ Unit-test the allowed and rejected transitions.
 
 ### 9. [Remove an entry — `DELETE /waitlists/{id}/entries/{entryId}`](https://github.com/zk2343-lab/CVNStack/issues/9)
 
-**Owner:** Yoongu Kang  
+**Owner:** Ding Wang  
 **Depends on:** 5
+
+Write path, with add-entry. Call the cache port to drop the member; unit tests use a fake cache. Include this endpoint's REST Assured cases in this pull request.
 
 Success: 200 with `{ "message": "Entry successfully removed", "entryId", "waitlistId" }`.  
 404 if either id is unknown or the entry was already removed.  
@@ -203,9 +218,9 @@ Unit-test the service with a mock repository.
 ### 10. [API test suite](https://github.com/zk2343-lab/CVNStack/issues/10)
 
 **Owner:** Yoongu Kang  
-**Depends on:** 4–9 and 20 (the collection can be sketched earlier against this document)
+**Depends on:** 6, 7
 
-REST Assured tests under the app module, run by `mvn test`, against PostgreSQL and Redis via Testcontainers. Do not point this suite at an in-memory fake.
+Read-path suite only: get-entry and serve-next, against Redis via Testcontainers. Ding covers create, add, update, and delete in those pull requests. The cross-store scenario lives in issue 20. Do not point this suite at an in-memory fake.
 
 Cover at least:
 
@@ -226,8 +241,8 @@ Fix the product bugs these tests find. Leave a note in the pull request for any 
 
 ### 12. [Branch coverage report](https://github.com/zk2343-lab/CVNStack/issues/12)
 
-**Owner:** Yoongu Kang, with gaps fixed by whoever owns the uncovered code  
-**Depends on:** 10
+**Owner:** Zengxiaoran Kang. Whoever owns an uncovered branch adds the missing test.  
+**Depends on:** 4, 5, 6, 7, 8, 9, 10, 20
 
 - JaCoCo configured in `pom.xml` for branch coverage.
 - Commit the report under `reports/jacoco/`.
@@ -236,7 +251,7 @@ Fix the product bugs these tests find. Leave a note in the pull request for any 
 ### 13. [README and API documentation](https://github.com/zk2343-lab/CVNStack/issues/13)
 
 **Owner:** Zengxiaoran Kang coordinates. Each person documents the endpoints they implemented.  
-**Depends on:** 4–9, 20, 21
+**Depends on:** nothing at the start. Build, run, test, Compose, and GCP sections can be written with issue 21. Each endpoint owner adds their section in the endpoint pull request.
 
 The README must include:
 
@@ -263,7 +278,7 @@ The README must include:
 ### 15. [Branch protection and the iteration-1 tag](https://github.com/zk2343-lab/CVNStack/issues/15)
 
 **Owner:** Zengxiaoran Kang  
-**Depends on:** 11, 12, 13, 14, 21
+**Depends on:** 11, 12, 13, 14, 20, 21
 
 - Protect `main`: pull request required, at least one review, no force-push.
 - Confirm the style report is clean and the coverage report is at least 55% on that commit.
@@ -275,44 +290,62 @@ The README must include:
 **Owner:** Zengxiaoran Kang  
 **Depends on:** 1
 
-Create the reactor and move the boot application into `modules/waitlist-app`. Add the other four modules with the dependency arrows in the layout section. `mvn test` from the repository root builds every module. This pull request can leave domain types and SQL empty; issues 2, 3, 18, and 19 fill them. No production in-memory repository.
+This is the only pull request Ding and Yoongu wait on.
+
+Create the reactor and move the boot application into `modules/waitlist-app`. Add the other four modules with the dependency arrows in the layout section. `mvn test` from the repository root builds every module. No production in-memory repository.
+
+Land these types here, with unit tests, so the write path and the read path can compile without another shared pull request:
+
+- `Waitlist`, `Entry`, `EntryStatus`
+- repository port and cache port
+- error DTO and error codes
+- pure ordering (higher priority, then earlier insertion time), wait estimate, and the allowed status transitions
+
+Issue 3 adds write-side policy on top of those types. Issue 18 and issue 19 implement the ports. They do not wait on issue 3.
 
 ### 18. [PostgreSQL schema and repository](https://github.com/zk2343-lab/CVNStack/issues/18)
 
 **Owner:** Ding Wang  
-**Depends on:** 3, 17
+**Depends on:** 17
+
+Write path. Starts as soon as the ports exist. No dependency on Redis or on issue 3.
 
 - Flyway migrations for waitlist and entry tables, including status, priority, insertion time, call time, and update time.
-- `waitlist-persistence` implements the repository ports from the domain module.
+- `waitlist-persistence` implements the repository port.
+- Queries that need waiting order use `priority DESC, inserted_at ASC`.
 - Waitlist name uniqueness is enforced in the database.
-- Integration test with Testcontainers: save, read, and the 409 path. No Redis in this pull request.
+- Integration test with Testcontainers: save, read, and the 409 path. No Redis client in this pull request.
 
 ### 19. [Redis cache for ranks, locks, and reads](https://github.com/zk2343-lab/CVNStack/issues/19)
 
 **Owner:** Yoongu Kang  
-**Depends on:** 3, 17
+**Depends on:** 17
+
+Read path. Starts as soon as the ports exist. No dependency on PostgreSQL or on issue 3.
 
 - `waitlist-cache` implements the cache port.
-- Waiting order is a sorted set per waitlist. Score puts a higher priority first and, within a priority, an earlier insertion time first. Document the score formula next to the code.
+- Waiting order is a sorted set per waitlist. Score puts a higher priority first and, within a priority, an earlier insertion time first. Use the same ordering rules as issue 17, and document the score next to the code.
 - A lock key for serve-next, and a per-entry read cache.
-- Integration test with Testcontainers against Redis only. Rebuilding from PostgreSQL is issue 20.
+- If the rank key is missing, rebuild it from the repository port. Tests pass a fake repository.
+- Integration test with Testcontainers against Redis only.
 
 ### 20. [Keep PostgreSQL and Redis consistent](https://github.com/zk2343-lab/CVNStack/issues/20)
 
-**Owner:** Ding Wang  
+**Owner:** Zengxiaoran Kang  
 **Depends on:** 18, 19
 
-Implement the consistency rules in decision 5, and switch `waitlist-app` onto these adapters. After this pull request the running service has no in-memory store.
+Platform path, and the only pull request that needs both stores. Ding's write services already call the cache port with a fake. Yoongu's cache already rebuilds from a fake repository. This pull request connects the real adapters in `waitlist-app`.
 
-- Add, patch, delete, and serve-next commit the database row, then update Redis.
-- A missing rank key or entry key is rebuilt from PostgreSQL before the response is computed.
-- Two overlapping serve-next calls on one waitlist return two different entries, or one entry and a 204.
-- Tests use both Testcontainers. Yoongu reviews, since the Redis operations are his module.
+- Spring wires PostgreSQL and Redis. No production in-memory store remains.
+- One Testcontainers test runs both stores: add a priority entry and a normal entry, serve-next returns the priority entry, and a second overlapping serve-next does not return the same entry.
+- Ding and Yoongu both review.
 
 ### 21. [Integrate the service with GCP](https://github.com/zk2343-lab/CVNStack/issues/21)
 
 **Owner:** Zengxiaoran Kang  
-**Depends on:** 17, 18, 19
+**Depends on:** 1
+
+Platform path. Terraform, Compose, and `/health` on Cloud Run do not wait for the repositories. Use the configuration names from this file so issue 18 and issue 19 can drop in later.
 
 Create Cloud SQL (PostgreSQL), Memorystore (Redis), and Cloud Run in one stack under `infra/gcp/`, plus `docker-compose.yml` for the same two stores locally. Database password comes from Secret Manager in GCP and from the compose env file locally. The app configuration names are the same in both places.
 
@@ -323,33 +356,31 @@ The issue is done when either Cloud Run is serving `/health` against those two m
 ## Suggested order
 
 ```
-1 Scaffold (Zengxiaoran)
+1 Scaffold (Zengxiaoran) -----> 21 GCP and Compose (Zengxiaoran)
         |
         v
-17 Shared modules (Zengxiaoran)
+17 Contracts (Zengxiaoran)
         |-----------------------------|
         v                             v
-2 API module (Yoongu)          3 Domain module (Ding)
+Ding, write path               Yoongu, read path
+  3 domain rules                 19 Redis
+  18 PostgreSQL                  6 Get entry
+  4 Create waitlist              7 Serve-next
+  5 Add entry                    10 Read-path API tests
+  8 Patch entry
+  9 Delete entry
         |                             |
         +--------------+--------------+
                        v
-     4 Create    5 Add entry    6 Get     and, once 3 is in:
-                       |                 18 Postgres (Ding)
-     7 Serve-next  8 Patch  9 Delete     19 Redis (Yoongu)
-                       |                      |
-                       |                      v
-                       |              20 Consistency (Ding)
-                       |                      |
-                       +----------+-----------+
-                                  v
-                    21 GCP (Zengxiaoran)   10 API suite (Yoongu)
-                                  |
-                    11 Checkstyle  12 Coverage  13 README  14 AI log
-                                  v
-                        15 Protect main + tag
+        2 Error handler (Zengxiaoran, any time after 17)
+        20 Wire both stores (Zengxiaoran)
+                       v
+        11 Checkstyle   12 Coverage   13 README   14 AI log
+                       v
+              15 Protect main + tag
 ```
 
-Issues 18 and 19 can proceed in parallel with the endpoint pull requests. Issue 10 waits until the endpoints and the consistent store are both on `main`. Issue 15 waits until 11–14 and 21 are on `main`.
+Ding's list and Yoongu's list run side by side after issue 17. Issue 2 and issue 21 are not on those lists. Issue 20 is the one join. Issue 15 waits until 11–14, 20, and 21 are on `main`.
 
 ---
 
