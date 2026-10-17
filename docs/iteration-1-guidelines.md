@@ -134,7 +134,8 @@ Graders start from 0 and add points for evidence on the tagged `main` commit. Th
 
 ## Definition of done
 
-- [ ] The six endpoints above run locally and can be demonstrated.
+- [ ] The six endpoints above run locally against PostgreSQL and Redis and can be demonstrated.
+- [ ] Shared modules, the consistency rules, and the GCP stack are in the repository. See the task breakdown.
 - [ ] `mvn test` runs the unit tests and the API tests.
 - [ ] `reports/jacoco/` shows branch coverage of at least 55%.
 - [ ] `reports/checkstyle/` is a clean Checkstyle run of the tagged tree.
