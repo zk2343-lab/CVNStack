@@ -1,4 +1,4 @@
-package edu.columbia.cvnstack.health;
+package com.cvnstack.model.response;
 
 /**
  * JSON body of {@code GET /health}.

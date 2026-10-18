@@ -1,4 +1,4 @@
-package edu.columbia.cvnstack.health;
+package com.cvnstack.controller;
 
 import static io.restassured.RestAssured.given;
 
@@ -14,7 +14,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  * <p>AI-assisted.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class HealthEndpointTest {
+class HealthControllerTest {
 
   @LocalServerPort
   private int port;

@@ -2,27 +2,31 @@
 
 # CVNStack change reference
 
-Source of truth for a task is the GitHub issue. This file holds the shared contracts: modules, status codes, and stores.
+Source of truth for a task is the GitHub issue. This file holds the shared contracts: packages, status codes, and stores.
 
-## Modules
+## Layout
 
-| Module | Package | May depend on |
-| --- | --- | --- |
-| `modules/waitlist-domain` | `edu.columbia.cvnstack.domain` | nothing in this repo |
-| `modules/waitlist-api` | `edu.columbia.cvnstack.api` | nothing in this repo |
-| `modules/waitlist-persistence` | `edu.columbia.cvnstack.persistence` | domain |
-| `modules/waitlist-cache` | `edu.columbia.cvnstack.cache` | domain |
-| `modules/waitlist-app` | `edu.columbia.cvnstack` | all four, once they exist |
+Single Maven module. Flat packages under `com.cvnstack`:
 
-Issue 1 creates only `waitlist-app` and the parent `pom.xml`. Issue 17 adds the other four. Do not create them early.
+| Package | Holds |
+| --- | --- |
+| `(root)` | `WaitlistApplication` |
+| `controller` | HTTP API handlers returning `ResponseEntity` |
+| `service` | Application services and storage ports |
+| `model` | Entities and modeling rules (order, estimate, transitions) |
+| `model.response` | Response DTOs (`HealthResponse`, `ErrorResponse`, …) |
+| `error` | `ErrorCode`, `ApiException`, `@ControllerAdvice` |
 
-`edu.columbia.cvnstack.health` is the liveness probe inside the app. Do not put waitlist types there.
+Configuration lives in `src/main/resources/` (no `config` Java package).
+Services reference model classes and `ErrorCode` through `ApiException`.
 
 ## Stores
 
 PostgreSQL is the source of truth. Schema changes go through Flyway. Redis holds the waiting-order sorted set, the serve-next lock, and a read cache of entry payloads. A mutation commits to PostgreSQL first, then updates Redis. If the Redis update fails, delete that waitlist's rank key and the entry cache key so the next read rebuilds from the database.
 
 Local stores come from `docker-compose.yml` (issue 21). The app reads host, port, and credentials from configuration. Do not hardcode them.
+
+Storage ports: `WaitlistStorage` and `CacheStorage` in `service` (impls in #18 / #19).
 
 ## HTTP
 
@@ -43,8 +47,8 @@ Priority is an integer 1–5. **5 is the most urgent.** Default is 1. Among `WAI
 
 ## Issue fences
 
-- Issue 1: parent POM, one bootable module, `GET /health` returns 200, Checkstyle file, `.gitignore`, README build/run. No database, no Redis, no in-memory repository.
-- Issue 17: entities, ports, error DTO, pure ordering, estimate, and transitions.
+- Issue 1: bootable app, `GET /health` returns 200, Checkstyle file, `.gitignore`, README build/run. No database, no Redis, no in-memory repository.
+- Issue 17: model types, storage ports, error types, pure ordering, estimate, and transitions.
 - Write path (Ding Wang): issues 3, 18, 4, 5, 8, 9.
 - Read path (Yoongu Kang): issues 19, 6, 7, 10.
 - Do not implement another owner's endpoints in your pull request.
