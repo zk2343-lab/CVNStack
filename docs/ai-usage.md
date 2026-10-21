@@ -80,3 +80,30 @@ Token totals come from the product's usage screen. If the screen has not been re
   > Remmeber to reference from our project design file Waitlist-Management-Service-CVNStack-Proposal (1).pdf . don't commit your changes - wait for my final sign off
 - **Files.** `pom.xml`, `README.md`, `src/main/java/com/cvnstack/{service,model,error}/`, `src/test/...`, `reports/checkstyle/`, `.agents/skills/cvnstack-code-change/`, `AGENTS.md`, this file.
 - **Tokens.** not yet read from the product usage screen
+
+## Codex
+
+| | |
+| --- | --- |
+| Tool | OpenAI Codex |
+| Source | https://openai.com/codex/ |
+| Model | `gpt-6.1-sol`, recorded in the local session log |
+| Token total | **22,015,476** |
+
+### Issue 19 - Redis cache for ranks, locks, and reads
+
+- **Completed.** Local implementation and testing. Simplified and documented.
+- **Purpose.** Implement the existing `CacheStorage` interface with Redis waiting order, entry caching, and serve-next locks. Add Redis container tests and unit tests. Prepare the local JDK 21 and Docker environment.
+- **Prompt.**
+
+  > Review the existing base code against the requirements and TODOs in issue #19. Check the existing CacheStorage interface and whether the implementation follows the intended direction. Discuss the changes with me before committing work, implement the approved work, and verify it with tests. Use standard Java where it keeps the code clear and efficient.
+
+- **Files.** `src/main/java/com/cvnstack/service/RedisCacheStorage.java`, `src/test/java/com/cvnstack/service/RedisCacheStorageTest.java`, `src/test/java/com/cvnstack/service/RedisCacheStorageUnitTest.java`, `pom.xml`, `README.md`, this file.
+- **Verification.** `mvn clean verify`: 49 tests passed, none skipped, and zero Checkstyle violations after removing the optional lock-duration setting.
+- **Tokens.** Included in the Codex total above. It includes #19 preparation, environment setup, related status checks, implementation, tests, explanations, and revisions.
+  | Recorded counter | Tokens |
+  | --- | ---: |
+  | Input, including cached input | 21,923,834 |
+  | Cached input, already included above | 21,125,120 |
+  | Output, including reasoning | 91,642 |
+  | Total: input + output | **22,015,476** |

@@ -14,6 +14,17 @@ No third-party source is copied into this repository. Libraries come from Maven 
 
 Install JDK 21 and Maven 3.9 or newer. `java -version` must report 21. If `mvn -version` shows a different Java, set `JAVA_HOME` to the JDK 21 home and run Maven again.
 
+Tests also require a running Docker-compatible runtime. Testcontainers starts an isolated
+`redis:7.4-alpine` container and removes it after testing. No separately installed Redis server
+is needed for tests. Tests are not skipped when Docker is unavailable.
+
+With rootless Docker on Linux, set these in the shell that runs Maven:
+
+```bash
+export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="/run/user/$(id -u)/docker.sock"
+```
+
 ```bash
 git clone https://github.com/zk2343-lab/CVNStack.git
 cd CVNStack
@@ -82,7 +93,8 @@ src/
       error/
 ```
 
-There is no production in-memory store. Mocks and fakes stay in unit tests. Testcontainers talk to PostgreSQL or Redis when those issues land.
+There is no production in-memory store. Mocks and fakes stay in unit tests.
+`RedisCacheStorageTest` uses an actual Redis container. PostgreSQL tests arrive with issue #18.
 
 ### Quality and data tools (names and config)
 
@@ -94,11 +106,49 @@ There is no production in-memory store. Mocks and fakes stay in unit tests. Test
 | REST Assured | HTTP API tests | root `pom.xml` dependency |
 | JaCoCo | Coverage on `mvn verify` | root `pom.xml` plugin |
 | Flyway | Schema migrations | arrives with issue #18 (PostgreSQL) |
-| Testcontainers | PostgreSQL / Redis in tests | arrives with issues #18 / #19 |
+| Testcontainers | Isolated Redis in tests; PostgreSQL later | root `pom.xml`, `RedisCacheStorageTest` |
 
 ## Local stores and GCP
 
 PostgreSQL is the source of truth. Redis holds the waiting-order sorted set, the serve-next lock, and a read cache of entry payloads.
+
+### Redis storage (issue #19)
+
+`service.RedisCacheStorage` implements the existing `CacheStorage` interface. It does not
+implement HTTP routes or read from PostgreSQL. Database/cache coordination remains issue #20.
+
+- `replaceWaitingOrder` receives ids already sorted by `WaitingOrder`: higher priority first,
+  then earlier insertion. The Sorted Set score is the zero-based index in that list.
+  Redis reads ascending scores; public positions still start at 1.
+- The ready key stores the expected waiting count. This distinguishes an uncached queue from a
+  cached empty queue and detects a missing rank key.
+- Entry Hashes store `id`, `waitlistId`, `name`, `priority`, `status`, and `insertedAt`.
+  Position and wait estimates are not cached inside the entry payload.
+- `deleteEntry` removes only the entry payload. The caller separately replaces or invalidates
+  waiting order when a mutation changes it.
+- `invalidateWaitlist` removes that waitlist's order and all its cached entries, not its lock
+  or another waitlist's data. A per-waitlist Set tracks entry cache keys; no global key scan is used.
+- Keys start with `cvnstack:waitlist:<encoded-id>:`. Each id component uses URL-safe Base64
+  without padding, so ids containing separators do not collide.
+
+Configure the application through Spring properties or their environment-variable equivalents:
+
+```properties
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+```
+
+Serve locks have a unique owner token and expire after 30 seconds. Release checks the
+token atomically before deleting the lock. Acquire and release must use the same adapter instance
+and thread, normally in a `try` / `finally` block. Locks are not reentrant or automatically renewed.
+Contention returns `false`; Redis failures propagate to the caller rather than returning stale data.
+A lock can expire during a long operation, so issue #20 must still use a conditional database
+update to prevent claiming an entry twice.
+
+Lua scripts keep related Redis changes atomic. References:
+[Spring Data Redis scripting](https://docs.spring.io/spring-data/redis/reference/redis/scripting.html),
+[Redis lock ownership](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/),
+[Sorted Set scores](https://redis.io/docs/latest/commands/zadd/).
 
 ### Consistency rules
 
