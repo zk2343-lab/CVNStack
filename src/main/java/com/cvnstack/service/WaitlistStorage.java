@@ -2,6 +2,7 @@ package com.cvnstack.service;
 
 import com.cvnstack.model.Entry;
 import com.cvnstack.model.Waitlist;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,6 +44,20 @@ public interface WaitlistStorage {
    * @return stored entry
    */
   Entry saveEntry(Entry entry);
+
+  /**
+   * Changes an entry to CALLED and records its call time only while it is WAITING.
+   *
+   * <p>The database implementation must check the waitlist id, entry id, and current
+   * status in the same update. Return only after that update commits. Do not implement
+   * this as a separate read followed by an unconditional save.
+   *
+   * @param waitlistId owning waitlist id
+   * @param entryId entry to claim
+   * @param calledAt call timestamp
+   * @return updated entry, or empty when the entry is missing or no longer WAITING
+   */
+  Optional<Entry> callEntryIfWaiting(String waitlistId, String entryId, Instant calledAt);
 
   /**
    * Finds an entry that belongs to the given waitlist.

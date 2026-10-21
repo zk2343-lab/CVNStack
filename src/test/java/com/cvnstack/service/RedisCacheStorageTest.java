@@ -148,6 +148,41 @@ class RedisCacheStorageTest {
   }
 
   @Test
+  void storesAndReadsCallTime() {
+    Entry called = new Entry("e1", "wl-1", "Desktop", 5, EntryStatus.CALLED,
+        T0, T0.plusSeconds(60));
+
+    cache.putEntry(called);
+
+    assertEquals(Optional.of(called), cache.findEntry("wl-1", "e1"));
+  }
+
+  @Test
+  void replacingEntryWithoutCallTimeClearsOldValue() {
+    Entry called = new Entry("e1", "wl-1", "Desktop", 5, EntryStatus.CALLED,
+        T0, T0.plusSeconds(60));
+    cache.putEntry(called);
+    assertEquals(Optional.of(called), cache.findEntry("wl-1", "e1"));
+    Entry withoutCallTime = new Entry("e1", "wl-1", "Desktop", 5, EntryStatus.CALLED, T0);
+
+    cache.putEntry(withoutCallTime);
+
+    assertEquals(Optional.of(withoutCallTime), cache.findEntry("wl-1", "e1"));
+  }
+
+  @Test
+  void readsCachedEntryWithoutTheNewCallTimeField() {
+    Entry original = entry("e1", "wl-1", 1, T0);
+    cache.putEntry(original);
+    String key = prefix("wl-1") + "entry:"
+        + Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("e1".getBytes(StandardCharsets.UTF_8));
+    redis.opsForHash().delete(key, "calledAt");
+
+    assertEquals(Optional.of(original), cache.findEntry("wl-1", "e1"));
+  }
+
+  @Test
   void updatesCachedEntry() {
     final Entry entry = entry("e1", "wl-1", 1, T0);
     cache.putEntry(entry);

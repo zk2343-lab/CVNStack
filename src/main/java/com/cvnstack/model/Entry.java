@@ -25,6 +25,7 @@ public final class Entry {
   private final int priority;
   private final EntryStatus status;
   private final Instant insertedAt;
+  private final Instant calledAt;
 
   /**
    * Creates an entry value.
@@ -43,6 +44,28 @@ public final class Entry {
       final int priority,
       final EntryStatus status,
       final Instant insertedAt) {
+    this(id, waitlistId, name, priority, status, insertedAt, null);
+  }
+
+  /**
+   * Creates an entry value including its stored call timestamp.
+   *
+   * @param id assigned entry identifier
+   * @param waitlistId owning waitlist identifier
+   * @param name entry display name
+   * @param priority urgency from MIN_PRIORITY to MAX_PRIORITY
+   * @param status current lifecycle status
+   * @param insertedAt insertion time used for tie-breaking
+   * @param calledAt call time, or null when no call time is recorded
+   */
+  public Entry(
+      final String id,
+      final String waitlistId,
+      final String name,
+      final int priority,
+      final EntryStatus status,
+      final Instant insertedAt,
+      final Instant calledAt) {
     this.id = Objects.requireNonNull(id, "id");
     this.waitlistId = Objects.requireNonNull(waitlistId, "waitlistId");
     this.name = Objects.requireNonNull(name, "name");
@@ -56,6 +79,7 @@ public final class Entry {
     this.priority = priority;
     this.status = Objects.requireNonNull(status, "status");
     this.insertedAt = Objects.requireNonNull(insertedAt, "insertedAt");
+    this.calledAt = calledAt;
   }
 
   /**
@@ -113,13 +137,22 @@ public final class Entry {
   }
 
   /**
+   * Returns the stored call timestamp.
+   *
+   * @return call time, or null when no call time is recorded
+   */
+  public Instant calledAt() {
+    return calledAt;
+  }
+
+  /**
    * Returns a copy with a different status.
    *
    * @param newStatus replacement status
    * @return new entry value
    */
   public Entry withStatus(final EntryStatus newStatus) {
-    return new Entry(id, waitlistId, name, priority, newStatus, insertedAt);
+    return new Entry(id, waitlistId, name, priority, newStatus, insertedAt, calledAt);
   }
 
   /**
@@ -129,7 +162,7 @@ public final class Entry {
    * @return new entry value
    */
   public Entry withPriority(final int newPriority) {
-    return new Entry(id, waitlistId, name, newPriority, status, insertedAt);
+    return new Entry(id, waitlistId, name, newPriority, status, insertedAt, calledAt);
   }
 
   @Override
@@ -145,11 +178,12 @@ public final class Entry {
         && waitlistId.equals(entry.waitlistId)
         && name.equals(entry.name)
         && status == entry.status
-        && insertedAt.equals(entry.insertedAt);
+        && insertedAt.equals(entry.insertedAt)
+        && Objects.equals(calledAt, entry.calledAt);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, waitlistId, name, priority, status, insertedAt);
+    return Objects.hash(id, waitlistId, name, priority, status, insertedAt, calledAt);
   }
 }
