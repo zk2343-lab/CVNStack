@@ -88,7 +88,7 @@ Token totals come from the product's usage screen. If the screen has not been re
 | Tool | OpenAI Codex |
 | Source | https://openai.com/codex/ |
 | Model | `gpt-6.1-sol`, recorded in the local session log |
-| Token total | **22,015,476** |
+| Token total | **22,015,476** recorded for #19; #7 not yet read from the product usage screen |
 
 ### Issue 19 - Redis cache for ranks, locks, and reads
 
@@ -107,3 +107,15 @@ Token totals come from the product's usage screen. If the screen has not been re
   | Cached input, already included above | 21,125,120 |
   | Output, including reasoning | 91,642 |
   | Total: input + output | **22,015,476** |
+
+### Issue 7 - Serve the next entry
+
+- **Completed.** 2026-10-21. Local implementation and testing. Database and lock integration remain in #18 and #20.
+- **Purpose.** Add the serve-next handler and tests, a stored call timestamp, and the conditional-claim storage contract. Preserve call timestamps in Redis.
+- **Prompt.**
+
+  > Implement issue #7 on a separate branch, following the proposal and issue requirements. Write tests first. Add the shared fields and function declarations needed for the operation, while leaving the PostgreSQL implementation and cross-store integration to #18 and #20. Verify the changes before committing or pushing.
+
+- **Files.** `src/main/java/com/cvnstack/controller/ServeNextController.java`, `src/main/java/com/cvnstack/service/ServeNextService.java`, `src/main/java/com/cvnstack/model/response/ServeNextResponse.java`, `src/main/java/com/cvnstack/model/Entry.java`, `src/main/java/com/cvnstack/service/WaitlistStorage.java`, `src/main/java/com/cvnstack/service/RedisCacheStorage.java`, `src/test/java/com/cvnstack/controller/ServeNextControllerTest.java`, `src/test/java/com/cvnstack/service/ServeNextServiceTest.java`, `src/test/java/com/cvnstack/model/EntryTest.java`, `src/test/java/com/cvnstack/service/RedisCacheStorageTest.java`, `README.md`, this file.
+- **Verification.** `mvn clean verify`: 68 tests passed, none skipped, and zero Checkstyle violations. Service and HTTP tests mock the storage ports; Redis payload tests use a real container. Concurrent requests against both stores remain in #20.
+- **Tokens.** not yet read from the product usage screen.
