@@ -3,12 +3,14 @@ package com.cvnstack.error;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
+import com.cvnstack.service.WaitlistStorage;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * Checks each HTTP status mapped by {@link GlobalExceptionHandler}.
@@ -18,6 +20,9 @@ import org.springframework.context.annotation.Import;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(ErrorProbeController.class)
 class GlobalExceptionHandlerTest {
+
+  @MockitoBean
+  private WaitlistStorage storage;
 
   @LocalServerPort
   private int port;

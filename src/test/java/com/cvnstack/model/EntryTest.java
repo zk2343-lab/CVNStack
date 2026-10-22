@@ -18,6 +18,21 @@ class EntryTest {
   private static final Instant T0 = Instant.parse("2026-01-01T00:00:00Z");
 
   @Test
+  void databaseTimestampParticipatesInValueAndSurvivesCopies() {
+    Entry entry = new Entry("e1", "w1", "a", 1, EntryStatus.CALLED, T0,
+        T0.plusSeconds(1), T0.plusSeconds(2));
+    Entry same = new Entry("e1", "w1", "a", 1, EntryStatus.CALLED, T0,
+        T0.plusSeconds(1), T0.plusSeconds(2));
+    Entry later = new Entry("e1", "w1", "a", 1, EntryStatus.CALLED, T0,
+        T0.plusSeconds(1), T0.plusSeconds(3));
+    assertEquals(entry, same);
+    assertEquals(entry.hashCode(), same.hashCode());
+    assertNotEquals(entry, later);
+    assertEquals(entry.updatedAt(), entry.withPriority(5).updatedAt());
+    assertEquals(entry.updatedAt(), entry.withStatus(EntryStatus.SERVED).updatedAt());
+  }
+
+  @Test
   void acceptsPriorityBounds() {
     final Entry low =
         new Entry("e1", "w1", "a", Entry.MIN_PRIORITY, EntryStatus.WAITING, T0);
