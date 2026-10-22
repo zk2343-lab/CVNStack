@@ -62,7 +62,9 @@ java -jar target/cvnstack-0.1.0-SNAPSHOT.jar
 
 The process listens on port 8080. `GET /health` returns 200 and `{"status":"UP"}`. Stop with Ctrl-C.
 
-Waitlist routes land in issues #4–#9. Until those merge, only `/health` and the shared error mapper are live.
+Waitlist routes land in issues #4–#9. The issue #6 entry lookup handler is implemented.
+Actual entry requests require a `WaitlistStorage` implementation (issue #18).
+`/health` still works without it; tests provide a mock repository.
 
 ## Layout
 
@@ -204,7 +206,8 @@ Error body shape: `{ "error": "...", "message": "..." }` (`model.response.ErrorR
 
 ## API endpoints
 
-These six routes match the proposal. Implementation issues are noted. Until they merge, callers receive 404 from Spring for unknown paths (not the waitlist `NOT_FOUND` body).
+These six routes match the proposal. Implementation issues are noted.
+Routes that are not implemented return Spring's default 404, not the waitlist `NOT_FOUND` body.
 
 ### `POST /waitlists` (issue #4)
 
@@ -225,8 +228,12 @@ These six routes match the proposal. Implementation issues are noted. Until they
 
 - **Input:** path `id`, `entryId`. No body.
 - **Success:** 200 with `waitlistId`, `entryId`, `status`, `priority`, `position`, `estimatedWaitTimeMinutes` (`position` / estimate null when not `WAITING`).
-- **Side effects:** none (read only; may populate Redis read cache).
+- **Side effects:** none. This handler does not write to the repository or Redis.
 - **Errors:** 404 waitlist or entry missing, or entry on another waitlist.
+- **Implementation:** uses `EntryRulesService` and `WaitEstimate`. Redis/database coordination
+  remains issue #20. Repository-backed use requires issue #18; the current tests use mocks.
+  Repository injection is [lazy](https://docs.spring.io/spring-framework/docs/6.2.x/javadoc-api/org/springframework/context/annotation/Lazy.html)
+  so `/health` can still start before the storage implementation lands.
 
 ### `POST /waitlists/{id}/serve-next` (issue #7)
 
