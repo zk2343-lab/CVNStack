@@ -88,7 +88,7 @@ Token totals come from the product's usage screen. If the screen has not been re
 | Tool | OpenAI Codex |
 | Source | https://openai.com/codex/ |
 | Model | `gpt-6.1-sol`, recorded in the local session log |
-| Token total | **27,942,956** across the recorded task snapshots below |
+| Token total | **27,942,956** across recorded #19 and #6 snapshots; #7 and later usage not yet read from the product usage screen |
 
 ### Issue 19 - Redis cache for ranks, locks, and reads
 
@@ -114,8 +114,20 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **Purpose.** Implement the read-only entry lookup using the existing storage port and ranking rules. Add service and HTTP tests with a mock repository. Keep `/health` working before the PostgreSQL implementation lands.
 - **Prompt.**
 
-  > Review the existing code and requirements for issue #6. Implement the entry lookup on a separate branch based on #19. Reuse the shared rules, write tests with a mock repository.
+  > Review the existing code and requirements for issue #6. Implement the entry lookup on a separate branch based on #19. Reuse the shared rules, write tests with a mock repository. Merge the latest main, preserve both task records when resolving the document conflict, and verify before committing and pushing.
 
 - **Files.** `src/main/java/com/cvnstack/controller/EntryQueryController.java`, `src/main/java/com/cvnstack/service/EntryQueryService.java`, `src/main/java/com/cvnstack/model/response/EntryResponse.java`, `src/test/java/com/cvnstack/service/EntryQueryServiceTest.java`, `src/test/java/com/cvnstack/controller/EntryQueryControllerTest.java`, `README.md`, this file.
-- **Verification.** Service tests first failed against an empty implementation. After implementation, `mvn clean verify` passed all 59 tests with none skipped and zero Checkstyle violations. HTTP tests use a mock repository, not PostgreSQL.
+- **Verification.** Service tests first failed against an empty implementation. After implementation, `mvn clean verify` passed all 59 tests. After merging main on 2026-10-23, all 78 tests passed with none skipped and zero Checkstyle violations. HTTP tests use a mock repository, not PostgreSQL.
 - **Tokens.** **5,927,480** (input 5,910,734, output 16,746; cached input 5,863,168 is already included). Summed 21 unique local usage records for this chat from 2026-10-19 13:12 through 13:32 UTC. Includes preparation and implementation. Later responses are outside this snapshot. Included in the Codex total above.
+
+### Issue 7 - Serve the next entry
+
+- **Completed.** 2026-10-21. Local implementation and testing. Database and lock integration remain in #18 and #20.
+- **Purpose.** Add the serve-next handler and tests, a stored call timestamp, and the conditional-claim storage contract. Preserve call timestamps in Redis.
+- **Prompt.**
+
+  > Implement issue #7 on a separate branch, following the proposal and issue requirements. Write tests first. Add the shared fields and function declarations needed for the operation, while leaving the PostgreSQL implementation and cross-store integration to #18 and #20. Verify the changes before committing or pushing.
+
+- **Files.** `src/main/java/com/cvnstack/controller/ServeNextController.java`, `src/main/java/com/cvnstack/service/ServeNextService.java`, `src/main/java/com/cvnstack/model/response/ServeNextResponse.java`, `src/main/java/com/cvnstack/model/Entry.java`, `src/main/java/com/cvnstack/service/WaitlistStorage.java`, `src/main/java/com/cvnstack/service/RedisCacheStorage.java`, `src/test/java/com/cvnstack/controller/ServeNextControllerTest.java`, `src/test/java/com/cvnstack/service/ServeNextServiceTest.java`, `src/test/java/com/cvnstack/model/EntryTest.java`, `src/test/java/com/cvnstack/service/RedisCacheStorageTest.java`, `README.md`, this file.
+- **Verification.** `mvn clean verify`: 68 tests passed, none skipped, and zero Checkstyle violations. Service and HTTP tests mock the storage ports; Redis payload tests use a real container. Concurrent requests against both stores remain in #20.
+- **Tokens.** not yet read from the product usage screen.

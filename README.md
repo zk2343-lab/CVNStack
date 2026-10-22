@@ -124,7 +124,8 @@ implement HTTP routes or read from PostgreSQL. Database/cache coordination remai
   Redis reads ascending scores; public positions still start at 1.
 - The ready key stores the expected waiting count. This distinguishes an uncached queue from a
   cached empty queue and detects a missing rank key.
-- Entry Hashes store `id`, `waitlistId`, `name`, `priority`, `status`, and `insertedAt`.
+- Entry Hashes store `id`, `waitlistId`, `name`, `priority`, `status`, `insertedAt`, and `calledAt`.
+  `calledAt` is optional; cached entries written before this field was added remain readable.
   Position and wait estimates are not cached inside the entry payload.
 - `deleteEntry` removes only the entry payload. The caller separately replaces or invalidates
   waiting order when a mutation changes it.
@@ -237,9 +238,20 @@ Routes that are not implemented return Spring's default 404, not the waitlist `N
 ### `POST /waitlists/{id}/serve-next` (issue #7)
 
 - **Input:** path `id`. No body.
-- **Success:** 200 with selected entry as `CALLED`; **204** when nobody is waiting.
-- **Side effects:** `WAITING` → `CALLED` under a Redis serve lock; waiting order updated after PostgreSQL commit.
+- **Success:** 200 with `waitlistId`, `entryId`, `status: "CALLED"`, and `priority`;
+  **204** without a body when no waiting candidate can be claimed.
+- **Side effects:** Records `CALLED` and the call time through a conditional database update.
+  After the update commits, invalidates the waitlist's cached entries and waiting order.
+  Empty and missing waitlists do not change records.
 - **Errors:** 404 unknown waitlist.
+- **Repeated requests:** Select the next waiting entry, not necessarily the same entry.
+
+The handler and mock-backed service and HTTP tests are implemented. Real requests still need
+the PostgreSQL adapter (#18) and Redis lock / cross-store integration (#20).
+`WaitlistStorage.callEntryIfWaiting` must update only a matching `WAITING` row, record `calledAt`,
+and return the updated entry after commit. It must not use an unconditional `saveEntry`.
+The service skips a candidate that another request has already claimed. Tests use mocks;
+actual concurrent requests against both stores are verified in #20.
 
 ### `PATCH /waitlists/{id}/entries/{entryId}` (issue #8)
 
