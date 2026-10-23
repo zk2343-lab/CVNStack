@@ -30,6 +30,16 @@ public final class ApiException extends RuntimeException {
   }
 
   /**
+   * Malformed request input, including an invalid identifier.
+   *
+   * @param message explanation
+   * @return exception mapped to HTTP 400
+   */
+  public static ApiException badRequest(final String message) {
+    return invalidRequest(message);
+  }
+
+  /**
    * Illegal status change.
    *
    * @param message explanation

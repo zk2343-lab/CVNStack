@@ -7,14 +7,14 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Storage service for waitlists and entries. PostgreSQL impl arrives in issue 18.
+ * Storage port for waitlists and entries backed by PostgreSQL.
  *
  * <p>AI-assisted.
  */
 public interface WaitlistStorage {
 
   /**
-   * Inserts or updates a waitlist.
+   * Inserts or updates a waitlist by id; a name owned by another id causes a conflict.
    *
    * @param waitlist waitlist to store
    * @return stored waitlist
@@ -38,12 +38,25 @@ public interface WaitlistStorage {
   Optional<Waitlist> findWaitlistByName(String name);
 
   /**
-   * Inserts or updates an entry.
+   * Inserts a new entry, rejecting an existing id; never overwrites an entry.
+   *
+   * <p>This operation does not enforce capacity or perform lifecycle transitions.
    *
    * @param entry entry to store
    * @return stored entry
    */
   Entry saveEntry(Entry entry);
+
+  /**
+   * Locks the owning waitlist and inserts only when WAITING plus CALLED is below capacity.
+   *
+   * <p>The lock, capacity read, active count, and insert share one transaction.
+   * A missing waitlist raises NOT_FOUND; a full waitlist raises CAPACITY_EXCEEDED.
+   *
+   * @param entry new entry to insert
+   * @return stored entry with its database write timestamp
+   */
+  Entry insertEntryIfCapacityAvailable(Entry entry);
 
   /**
    * Changes an entry to CALLED and records its call time only while it is WAITING.
@@ -69,7 +82,7 @@ public interface WaitlistStorage {
   Optional<Entry> findEntry(String waitlistId, String entryId);
 
   /**
-   * Lists every entry on a waitlist.
+   * Lists every entry on a waitlist without guaranteeing business ranking order.
    *
    * @param waitlistId waitlist id
    * @return entries, possibly empty
@@ -81,8 +94,9 @@ public interface WaitlistStorage {
    *
    * @param waitlistId owning waitlist id
    * @param entryId entry id
+   * @return true when exactly one matching entry was deleted, false otherwise
    */
-  void deleteEntry(String waitlistId, String entryId);
+  boolean deleteEntry(String waitlistId, String entryId);
 
   /**
    * Counts entries currently {@code WAITING} on a waitlist.
