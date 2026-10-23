@@ -158,6 +158,43 @@ class RedisCacheStorageTest {
   }
 
   @Test
+  void preservesAllThreeTimestampsAndReplacesWriteTime() {
+    Entry stored = new Entry("e1", "wl-1", "Desktop", 5, EntryStatus.CALLED,
+        T0, T0.plusSeconds(60), T0.plusSeconds(61));
+    cache.putEntry(stored);
+    assertEquals(Optional.of(stored), cache.findEntry("wl-1", "e1"));
+
+    Entry updated = new Entry("e1", "wl-1", "Desktop", 5, EntryStatus.SERVED,
+        T0, T0.plusSeconds(60), T0.plusSeconds(120));
+    cache.putEntry(updated);
+    assertEquals(Optional.of(updated), cache.findEntry("wl-1", "e1"));
+  }
+
+  @Test
+  void replacingEntryWithoutWriteTimeClearsOldValue() {
+    Entry stored = new Entry("e1", "wl-1", "Desktop", 5, EntryStatus.WAITING,
+        T0, null, T0.plusSeconds(1));
+    cache.putEntry(stored);
+    Entry withoutWriteTime = new Entry("e1", "wl-1", "Desktop", 5, EntryStatus.WAITING, T0);
+
+    cache.putEntry(withoutWriteTime);
+
+    assertEquals(Optional.of(withoutWriteTime), cache.findEntry("wl-1", "e1"));
+  }
+
+  @Test
+  void readsLegacyPayloadWithoutWriteTime() {
+    Entry original = entry("e1", "wl-1", 1, T0);
+    cache.putEntry(original);
+    String key = prefix("wl-1") + "entry:"
+        + Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("e1".getBytes(StandardCharsets.UTF_8));
+    redis.opsForHash().delete(key, "updatedAt");
+
+    assertEquals(Optional.of(original), cache.findEntry("wl-1", "e1"));
+  }
+
+  @Test
   void replacingEntryWithoutCallTimeClearsOldValue() {
     Entry called = new Entry("e1", "wl-1", "Desktop", 5, EntryStatus.CALLED,
         T0, T0.plusSeconds(60));

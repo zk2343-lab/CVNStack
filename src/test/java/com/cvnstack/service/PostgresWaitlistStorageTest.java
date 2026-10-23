@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.cvnstack.error.ApiException;
+import com.cvnstack.error.ErrorCode;
+import com.cvnstack.error.GlobalExceptionHandler;
 import com.cvnstack.model.Entry;
 import com.cvnstack.model.EntryStatus;
 import com.cvnstack.model.Waitlist;
@@ -70,6 +72,66 @@ class PostgresWaitlistStorageTest {
   @BeforeEach
   void cleanTables() {
     jdbc.execute("TRUNCATE entries, waitlists");
+  }
+
+  @Test
+  void malformedWaitlistIdsAreBadRequestsAcrossStoragePaths() {
+    String entryId = UUID.randomUUID().toString();
+    Entry entry = entry("abc", EntryStatus.WAITING);
+    List<Runnable> operations = List.of(
+        () -> storage.findWaitlistById("abc"),
+        () -> storage.findEntry("abc", entryId),
+        () -> storage.findEntriesByWaitlistId("abc"),
+        () -> storage.deleteEntry("abc", entryId),
+        () -> storage.callEntryIfWaiting("abc", entryId, INSERTED),
+        () -> storage.countWaitingEntries("abc"),
+        () -> storage.saveWaitlist(new Waitlist("abc", "Malformed", 2, 5)),
+        () -> storage.saveEntry(entry),
+        () -> storage.insertEntryIfCapacityAvailable(entry));
+    for (Runnable operation : operations) {
+      ApiException failure = assertThrows(ApiException.class, operation::run);
+      assertEquals(HttpStatus.BAD_REQUEST, failure.status());
+      assertEquals(ErrorCode.INVALID_REQUEST, failure.errorCode());
+      assertEquals("Invalid waitlist id", failure.getMessage());
+      assertEquals(HttpStatus.BAD_REQUEST,
+          new GlobalExceptionHandler().handleApiException(failure).getStatusCode());
+    }
+  }
+
+  @Test
+  void malformedEntryIdsAreBadRequestsAcrossStoragePaths() {
+    Waitlist waitlist = storage.saveWaitlist(waitlist(2));
+    Entry entry = new Entry("abc", waitlist.id(), "Person", 2, EntryStatus.WAITING, INSERTED);
+    List<Runnable> operations = List.of(
+        () -> storage.findEntry(waitlist.id(), "abc"),
+        () -> storage.deleteEntry(waitlist.id(), "abc"),
+        () -> storage.callEntryIfWaiting(waitlist.id(), "abc", INSERTED),
+        () -> storage.saveEntry(entry),
+        () -> storage.insertEntryIfCapacityAvailable(entry));
+    for (Runnable operation : operations) {
+      ApiException failure = assertThrows(ApiException.class, operation::run);
+      assertEquals(HttpStatus.BAD_REQUEST, failure.status());
+      assertEquals(ErrorCode.INVALID_REQUEST, failure.errorCode());
+      assertEquals("Invalid entry id", failure.getMessage());
+    }
+    assertTrue(storage.findEntriesByWaitlistId(waitlist.id()).isEmpty());
+  }
+
+  @Test
+  void validMissingIdsRemainEmptyAndServicesReturnNotFound() {
+    String missingId = UUID.randomUUID().toString();
+    assertTrue(storage.findWaitlistById(missingId).isEmpty());
+    assertTrue(storage.findEntry(missingId, missingId).isEmpty());
+    assertTrue(storage.callEntryIfWaiting(missingId, missingId, INSERTED).isEmpty());
+    assertFalse(storage.deleteEntry(missingId, missingId));
+    EntryQueryService service = new EntryQueryService(storage, new EntryRulesService());
+    ApiException missingWaitlist = assertThrows(ApiException.class,
+        () -> service.getEntry(missingId, missingId));
+    assertEquals(HttpStatus.NOT_FOUND, missingWaitlist.status());
+    Waitlist waitlist = storage.saveWaitlist(waitlist(2));
+    ApiException missingEntry = assertThrows(ApiException.class,
+        () -> service.getEntry(waitlist.id(), missingId));
+    assertEquals(HttpStatus.NOT_FOUND, missingEntry.status());
   }
 
   @Test

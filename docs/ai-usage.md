@@ -145,3 +145,17 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **Verification.** `mvn test`: 87 tests passed, none failed or skipped, including eight PostgreSQL integration tests and a competing capacity insert test. Flyway created a clean schema and applied no migrations on a repeat run. `mvn checkstyle:check`: zero violations. `git diff --check`: clean.
 - **Tokens (user-requested estimate).** Approximately **86,300** for Issue #18, using the context occupancy as a proxy at the user's request; this is not a measured cumulative token total. Actual usage: not yet read from the product usage screen.
 - **Source.** User-provided Codex CLI local check, not a product usage-screen reading: `Context window: 84% left (86.3K used / 475K)`. This estimate is not included in the measured Codex token total above.
+- **Review follow-up (2026-10-23).** Extended the authorized scope to preserve `Entry.updatedAt` in Redis payload writes and reads. Older payloads without the field remain readable; replacing a payload updates or clears the timestamp without generating a new one in Redis.
+- **Follow-up prompt.**
+
+  > I want to make the Redis change here to make the redis storage consistent with the entry model change.
+
+- **Additional files.** `src/main/java/com/cvnstack/service/RedisCacheStorage.java`, `src/test/java/com/cvnstack/service/RedisCacheStorageTest.java`, this file.
+- **UUID review follow-up (2026-10-23).** Added `ApiException.badRequest` and localized UUID parsing in PostgreSQL storage. Only UUID parse failures become HTTP 400 / INVALID_REQUEST; valid missing rows retain empty storage results and existing service 404 handling. Redis exception handling and the global exception handler were unchanged.
+- **UUID follow-up prompt.**
+
+  > Implement focused malformed-UUID handling for the PostgreSQL storage paths. A syntactically invalid UUID string should result in 400 Bad Request. A syntactically valid UUID that does not exist should continue to result in 404 Not Found through the existing service logic. Do not add a blanket/global mapping from all IllegalArgumentException to 400. Add ApiException.badRequest, a private UUID parsing helper, replace relevant direct UUID parsing calls, and add focused tests without changing Redis exception handling.
+
+- **Additional UUID files.** `src/main/java/com/cvnstack/error/ApiException.java`, `src/main/java/com/cvnstack/service/PostgresWaitlistStorage.java`, `src/test/java/com/cvnstack/service/PostgresWaitlistStorageTest.java`, this file.
+- **UUID follow-up verification.** `mvn test checkstyle:check`: all 93 tests passed, none failed or skipped; zero Checkstyle violations. Three added PostgreSQL integration tests cover malformed waitlist IDs, malformed entry IDs, existing handler HTTP 400 mapping, and valid missing UUIDs producing service 404 responses. Additional token usage: not yet read from the product usage screen.
+- **Follow-up verification.** `mvn -Dtest=RedisCacheStorageTest,RedisCacheStorageUnitTest test checkstyle:check`: 28 tests passed, none failed or skipped; zero Checkstyle violations. Three added integration tests cover distinct timestamps at nanosecond precision, replacement and clearing of the cached write timestamp, and legacy payloads without `updatedAt`. Additional token usage has not yet been read from the product usage screen; the earlier estimate is unchanged.

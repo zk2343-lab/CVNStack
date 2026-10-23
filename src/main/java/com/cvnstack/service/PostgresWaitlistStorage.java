@@ -67,7 +67,7 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
               max_length = EXCLUDED.max_length,
               processing_time_per_entry_minutes = EXCLUDED.processing_time_per_entry_minutes
           RETURNING *
-          """, WAITLIST_MAPPER, UUID.fromString(waitlist.id()), waitlist.name(),
+          """, WAITLIST_MAPPER, parseUuid(waitlist.id(), "waitlist id"), waitlist.name(),
           waitlist.maxLength(), waitlist.processingTimePerEntryMinutes());
     } catch (DataIntegrityViolationException exception) {
       if (isConstraintViolation(exception, "23505", "uq_waitlists_name")) {
@@ -80,7 +80,7 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
   @Override
   public Optional<Waitlist> findWaitlistById(String id) {
     return jdbc.query("SELECT * FROM waitlists WHERE id = ?", WAITLIST_MAPPER,
-        UUID.fromString(id)).stream().findFirst();
+        parseUuid(id, "waitlist id")).stream().findFirst();
   }
 
   @Override
@@ -96,7 +96,8 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
           INSERT INTO entries (id, waitlist_id, name, priority, status, inserted_at, called_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)
           RETURNING *
-          """, ENTRY_MAPPER, UUID.fromString(entry.id()), UUID.fromString(entry.waitlistId()),
+          """, ENTRY_MAPPER, parseUuid(entry.id(), "entry id"),
+          parseUuid(entry.waitlistId(), "waitlist id"),
           entry.name(), entry.priority(), entry.status().name(), Timestamp.from(entry.insertedAt()),
           entry.calledAt() == null ? null : Timestamp.from(entry.calledAt()));
     } catch (DataIntegrityViolationException exception) {
@@ -110,7 +111,7 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
   @Override
   public Entry insertEntryIfCapacityAvailable(Entry entry) {
     return Objects.requireNonNull(capacityTransaction.execute(transaction -> {
-      UUID waitlistId = UUID.fromString(entry.waitlistId());
+      UUID waitlistId = parseUuid(entry.waitlistId(), "waitlist id");
       Waitlist waitlist = jdbc.query("SELECT * FROM waitlists WHERE id = ? FOR UPDATE",
           WAITLIST_MAPPER, waitlistId).stream().findFirst()
           .orElseThrow(() -> ApiException.notFound("Waitlist does not exist"));
@@ -132,38 +133,47 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
         UPDATE entries SET status = 'CALLED', called_at = ?, updated_at = CURRENT_TIMESTAMP
         WHERE waitlist_id = ? AND id = ? AND status = 'WAITING'
         RETURNING *
-        """, ENTRY_MAPPER, Timestamp.from(calledAt), UUID.fromString(waitlistId),
-        UUID.fromString(entryId)).stream().findFirst();
+        """, ENTRY_MAPPER, Timestamp.from(calledAt), parseUuid(waitlistId, "waitlist id"),
+        parseUuid(entryId, "entry id")).stream().findFirst();
   }
 
   @Override
   public Optional<Entry> findEntry(String waitlistId, String entryId) {
     return jdbc.query("SELECT * FROM entries WHERE waitlist_id = ? AND id = ?",
-        ENTRY_MAPPER, UUID.fromString(waitlistId), UUID.fromString(entryId)).stream().findFirst();
+        ENTRY_MAPPER, parseUuid(waitlistId, "waitlist id"), parseUuid(entryId, "entry id"))
+        .stream().findFirst();
   }
 
   @Override
   public List<Entry> findEntriesByWaitlistId(String waitlistId) {
     return jdbc.query("SELECT * FROM entries WHERE waitlist_id = ?", ENTRY_MAPPER,
-        UUID.fromString(waitlistId));
+        parseUuid(waitlistId, "waitlist id"));
   }
 
   @Override
   public boolean deleteEntry(String waitlistId, String entryId) {
     return jdbc.update("DELETE FROM entries WHERE waitlist_id = ? AND id = ?",
-        UUID.fromString(waitlistId), UUID.fromString(entryId)) == 1;
+        parseUuid(waitlistId, "waitlist id"), parseUuid(entryId, "entry id")) == 1;
   }
 
   @Override
   public long countWaitingEntries(String waitlistId) {
     return Objects.requireNonNull(jdbc.queryForObject(
         "SELECT COUNT(*) FROM entries WHERE waitlist_id = ? AND status = 'WAITING'",
-        Long.class, UUID.fromString(waitlistId)));
+        Long.class, parseUuid(waitlistId, "waitlist id")));
   }
 
   private static Instant nullableInstant(ResultSet row, String column) throws SQLException {
     Timestamp value = row.getTimestamp(column);
     return value == null ? null : value.toInstant();
+  }
+
+  private static UUID parseUuid(final String value, final String fieldName) {
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException exception) {
+      throw ApiException.badRequest("Invalid " + fieldName);
+    }
   }
 
   private static boolean isConstraintViolation(
