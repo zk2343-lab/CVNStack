@@ -221,8 +221,9 @@ class PostgresWaitlistStorageTest {
     ApiException missing = assertThrows(ApiException.class,
         () -> storage.saveEntry(entry(UUID.randomUUID().toString(), EntryStatus.WAITING)));
     assertEquals(HttpStatus.NOT_FOUND, missing.status());
-    assertThrows(DataIntegrityViolationException.class,
-        () -> storage.saveWaitlist(new Waitlist(UUID.randomUUID().toString(), "Zero", 2, 0)));
+    assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
+        "UPDATE waitlists SET processing_time_per_entry_minutes = 0 WHERE id = ?",
+        UUID.fromString(waitlist.id())));
   }
 
   @Test
