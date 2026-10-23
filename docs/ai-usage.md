@@ -159,3 +159,23 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **Additional UUID files.** `src/main/java/com/cvnstack/error/ApiException.java`, `src/main/java/com/cvnstack/service/PostgresWaitlistStorage.java`, `src/test/java/com/cvnstack/service/PostgresWaitlistStorageTest.java`, this file.
 - **UUID follow-up verification.** `mvn test checkstyle:check`: all 93 tests passed, none failed or skipped; zero Checkstyle violations. Three added PostgreSQL integration tests cover malformed waitlist IDs, malformed entry IDs, existing handler HTTP 400 mapping, and valid missing UUIDs producing service 404 responses. Additional token usage: not yet read from the product usage screen.
 - **Follow-up verification.** `mvn -Dtest=RedisCacheStorageTest,RedisCacheStorageUnitTest test checkstyle:check`: 28 tests passed, none failed or skipped; zero Checkstyle violations. Three added integration tests cover distinct timestamps at nanosecond precision, replacement and clearing of the cached write timestamp, and legacy payloads without `updatedAt`. Additional token usage has not yet been read from the product usage screen; the earlier estimate is unchanged.
+
+### Issue 4 - Create a waitlist
+
+- **Completed.** 2026-10-23. Local implementation and testing.
+- **Tool / source.** Codex, https://openai.com/codex/.
+- **Purpose.** Implement POST /waitlists using request/response records, a dedicated creation service, server-generated UUIDs, and the existing PostgreSQL storage port. Validate nonblank names and positive settings, return stored settings with HTTP 200, and propagate duplicate-name conflicts as HTTP 409. Require positive processing time in Waitlist and preserve database constraint coverage through direct SQL. Include service, model, and REST Assured tests.
+- **Prompt.**
+
+  > Implement Issue #4: POST /waitlists — create a waitlist. Add CreateWaitlistRequest, WaitlistResponse without updatedAt, a dedicated CreateWaitlistService returning the persisted result, and a controller returning ResponseEntity.ok. Validate input with ApiException.badRequest, enforce positive processing time in Waitlist, propagate storage conflicts, create no entries, and add no Redis caching. Add mocked-storage service tests, model invariant tests, and REST Assured endpoint tests for success, invalid input without persistence, and duplicate-name conflicts.
+
+- **Files.** `src/main/java/com/cvnstack/model/request/CreateWaitlistRequest.java`, `src/main/java/com/cvnstack/model/response/WaitlistResponse.java`, `src/main/java/com/cvnstack/service/CreateWaitlistService.java`, `src/main/java/com/cvnstack/controller/CreateWaitlistController.java`, `src/main/java/com/cvnstack/model/Waitlist.java`, `src/test/java/com/cvnstack/service/CreateWaitlistServiceTest.java`, `src/test/java/com/cvnstack/controller/CreateWaitlistControllerTest.java`, `src/test/java/com/cvnstack/model/WaitlistTest.java`, `src/test/java/com/cvnstack/service/PostgresWaitlistStorageTest.java`, this file.
+- **Verification.** Java 21 `mvn test checkstyle:check` passed, with zero Checkstyle violations. Includes PostgreSQL and Redis integration tests; new HTTP tests mock storage and verify no cache or entry operations.
+- **Tokens.** **3,192,037** cumulative total since Issue #4 began (3,175,788 input + 16,249 output), including the request DTO organization follow-up. Cached input: 3,099,904, already included in input. Cache-write input: 0. Reasoning output: 708, already included in output. Replaces the earlier snapshot; do not add the two totals together.
+- **Usage source.** User-provided local usage record, supplied on 2026-10-23; not a product usage-screen reading. Product usage: not yet read from the product usage screen. This snapshot excludes subsequent turns.
+- **Request DTO organization follow-up (2026-10-23).** Moved CreateWaitlistRequest into `com.cvnstack.model.request` and updated controller, service, and service-test imports. Fields, validation, and endpoint behavior are unchanged.
+- **Follow-up prompt.**
+
+  > Move CreateWaitlistRequest from com.cvnstack.model to com.cvnstack.model.request, update all production and test imports, and run relevant tests. Keep the refactor organizational without changing fields, validation, endpoint behavior, domain models, or response DTOs.
+
+- **Follow-up verification.** Java 21 `mvn -Dtest=CreateWaitlistServiceTest,CreateWaitlistControllerTest test checkstyle:check`: all 24 tests passed, none skipped; zero Checkstyle violations. No imports reference the previous request package.
