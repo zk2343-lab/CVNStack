@@ -66,9 +66,10 @@ class PatchEntryControllerTest {
     verifyNoInteractions(cache);
   }
 
-  @Test
-  void priorityOnlyReturnsDerivedRankingAndStoredTimestamp() {
-    given().port(port).contentType("application/json").body("{\"priority\":5}")
+  @ParameterizedTest
+  @ValueSource(strings = {"5", "\"5\""})
+  void priorityOnlyReturnsDerivedRankingAndStoredTimestamp(String priority) {
+    given().port(port).contentType("application/json").body("{\"priority\":" + priority + "}")
         .patch("/waitlists/wl/entries/e").then().statusCode(200)
         .body("priority", equalTo(5)).body("status", equalTo("WAITING"))
         .body("updatedAt", equalTo(timestamp.plusSeconds(20).toString()))
@@ -84,6 +85,14 @@ class PatchEntryControllerTest {
         .patch("/waitlists/wl/entries/e").then().statusCode(200)
         .body("status", equalTo("CALLED"))
         .body("position", nullValue()).body("estimatedWaitTimeMinutes", nullValue());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"5.9", "4.5", "5.0", "5e0"})
+  void floatingPointPriorityReturns400BeforePersistence(String priority) {
+    given().port(port).contentType("application/json").body("{\"priority\":" + priority + "}")
+        .patch("/waitlists/wl/entries/e").then().statusCode(400);
+    verifyNoInteractions(storage, cache);
   }
 
   @ParameterizedTest
