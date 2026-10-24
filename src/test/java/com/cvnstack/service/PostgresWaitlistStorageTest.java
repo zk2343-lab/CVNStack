@@ -197,6 +197,51 @@ class PostgresWaitlistStorageTest {
   }
 
   @Test
+  void competingPatchesCannotBothOverwriteTheSameObservedRow() throws Exception {
+    Waitlist waitlist = storage.saveWaitlist(waitlist(3));
+    Entry original = storage.saveEntry(entry(waitlist.id(), EntryStatus.WAITING));
+    CountDownLatch start = new CountDownLatch(1);
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var first = executor.submit(() -> {
+        assertTrue(start.await(10, TimeUnit.SECONDS));
+        return storage.updateEntryIfUnchanged(original.withPriority(4), original);
+      });
+      var second = executor.submit(() -> {
+        assertTrue(start.await(10, TimeUnit.SECONDS));
+        return storage.updateEntryIfUnchanged(original.withPriority(5), original);
+      });
+      start.countDown();
+      Optional<Entry> a = first.get(10, TimeUnit.SECONDS);
+      Optional<Entry> b = second.get(10, TimeUnit.SECONDS);
+      assertTrue(a.isPresent() ^ b.isPresent());
+      assertEquals(a.isPresent() ? a : b, storage.findEntry(waitlist.id(), original.id()));
+    }
+  }
+
+  @Test
+  void conditionalPatchUsesDatabaseTimeAndRejectsStaleStatusAndPriority() {
+    Waitlist waitlist = storage.saveWaitlist(waitlist(3));
+    Entry original = storage.saveEntry(entry(waitlist.id(), EntryStatus.WAITING));
+    Entry reordered = storage.updateEntryIfUnchanged(original.withPriority(5), original)
+        .orElseThrow();
+    assertEquals(5, reordered.priority());
+    assertEquals(original.insertedAt(), reordered.insertedAt());
+    assertFalse(reordered.updatedAt().isBefore(original.updatedAt()));
+    assertEquals(Optional.of(reordered), storage.findEntry(waitlist.id(), original.id()));
+    assertTrue(storage.updateEntryIfUnchanged(original.withStatus(EntryStatus.CANCELLED),
+        original).isEmpty());
+    Entry called = storage.callEntryIfWaiting(waitlist.id(), original.id(), INSERTED)
+        .orElseThrow();
+    assertTrue(storage.updateEntryIfUnchanged(reordered.withPriority(3), reordered).isEmpty());
+    Entry served = storage.updateEntryIfUnchanged(called.withStatus(EntryStatus.SERVED), called)
+        .orElseThrow();
+    assertEquals(INSERTED, served.calledAt());
+    assertEquals(Optional.of(served), storage.findEntry(waitlist.id(), original.id()));
+    assertTrue(storage.deleteEntry(waitlist.id(), original.id()));
+    assertTrue(storage.updateEntryIfUnchanged(served, served).isEmpty());
+  }
+
+  @Test
   void deleteAndFindAreScopedToWaitlist() {
     Waitlist waitlist = storage.saveWaitlist(waitlist(3));
     Entry stored = storage.saveEntry(entry(waitlist.id(), EntryStatus.WAITING));
