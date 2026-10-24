@@ -192,3 +192,18 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **Files.** `src/main/java/com/cvnstack/controller/DeleteEntryController.java`, `src/main/java/com/cvnstack/model/response/DeleteEntryResponse.java`, `src/main/java/com/cvnstack/service/DeleteEntryService.java`, `src/test/java/com/cvnstack/controller/DeleteEntryControllerTest.java`, `src/test/java/com/cvnstack/service/DeleteEntryServiceTest.java`, this file.
 - **Verification.** `mvn test checkstyle:check`: 133 tests passed, none failed or skipped; zero Checkstyle violations. Includes five new service tests and four new REST Assured tests, plus existing PostgreSQL and Redis integration tests. Storage failures propagate unchanged. `git diff --check`: clean.
 - **Tokens.** **558,484** total for Issue #9, from the user-provided local usage record (not a product usage-screen reading). Input: 553,175; cached input: 516,608; cache-write input: 0; output: 5,309; reasoning output: 57. Cached input and reasoning output are reported subcategories, not additional tokens added to the total.
+
+### Issue 10 - Read-path API tests
+
+- **Completed.** 2026-10-23. Local read-path tests. Write-route cases and the remaining #20 integration are not included.
+- **Purpose.** Test GET entry and serve-next through HTTP with real PostgreSQL and Redis containers. Keep the existing mock-based tests and production code unchanged.
+- **Prompt.**
+
+  > Start issue #10 on a separate branch from the latest main. Reuse the existing test structure and add REST Assured tests with actual PostgreSQL and Redis, not mocked storage. Prepare test data through the repository because the write endpoints are not implemented yet. Verify GET, serve-next, database changes, and cache invalidation. Leave the remaining write-route and #20 cases separate. Run the full checks before committing or pushing. Commit the local work, merge the latest main while preserving both task records, and rerun the full checks.
+
+  > Resolve the conflict in PR #32 after the DELETE changes merge into main. Keep both task records and run the full checks before pushing.
+
+- **Files.** `src/test/java/com/cvnstack/controller/ReadPathApiTest.java`, `README.md`, this file.
+- **Verification.** The new class passed all 13 test executions. `mvn clean verify`: all 106 tests passed on the original base. After merging main on 2026-10-24, all 137 tests passed, none failed or skipped, with zero Checkstyle violations. No production changes were needed for the tests.
+- **Merge follow-up.** 2026-10-24: preserved the #9 and #10 records when merging main after PR #33. `mvn clean verify`: all 146 tests passed, none failed or skipped; zero Checkstyle violations.
+- **Tokens.** not yet read from the product usage screen.
