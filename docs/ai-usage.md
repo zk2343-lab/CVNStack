@@ -160,14 +160,34 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **UUID follow-up verification.** `mvn test checkstyle:check`: all 93 tests passed, none failed or skipped; zero Checkstyle violations. Three added PostgreSQL integration tests cover malformed waitlist IDs, malformed entry IDs, existing handler HTTP 400 mapping, and valid missing UUIDs producing service 404 responses. Additional token usage: not yet read from the product usage screen.
 - **Follow-up verification.** `mvn -Dtest=RedisCacheStorageTest,RedisCacheStorageUnitTest test checkstyle:check`: 28 tests passed, none failed or skipped; zero Checkstyle violations. Three added integration tests cover distinct timestamps at nanosecond precision, replacement and clearing of the cached write timestamp, and legacy payloads without `updatedAt`. Additional token usage has not yet been read from the product usage screen; the earlier estimate is unchanged.
 
+### Issue 5 - POST /waitlists/{id}/entries - add an entry
+
+- **Completed.** 2026-10-23.
+- **Tool / source.** Codex, https://openai.com/codex/.
+- **Purpose.** Add the create-entry request DTO, controller, and dedicated service. Validate before storage access, default priority to 1, use the atomic capacity insert and persisted entry, calculate waiting information through shared rules, and update entry payload and ranked ID caches explicitly. Keep Issue #20 coordination out of scope.
+- **Prompt.**
+
+  > Implement GitHub Issue #5: `POST /waitlists/{id}/entries — add an entry`.
+  > Work only on Issue #5. Follow the existing project structure and patterns. Do not implement Issue #20 PostgreSQL/Redis consistency coordination in this PR.
+  > Do NOT put `waitlistId` in the request DTO. It already comes from the URL path.
+  > Use `Integer` rather than primitive `int` so omission can be distinguished and mapped to default priority `1`.
+  > Use the returned persisted entry for all subsequent work.
+  > Do not implement ranking logic again inside the new service.
+  > Include this endpoint's REST Assured tests in this PR, as required by Issue #5.
+  > Run the relevant unit tests and REST Assured/controller tests and fix any regressions caused by this implementation.
+
+- **Files.** `src/main/java/com/cvnstack/model/request/CreateEntryRequest.java`, `src/main/java/com/cvnstack/controller/CreateEntryController.java`, `src/main/java/com/cvnstack/service/CreateEntryService.java`, `src/test/java/com/cvnstack/service/CreateEntryServiceTest.java`, `src/test/java/com/cvnstack/controller/CreateEntryControllerTest.java`, this file.
+- **Verification.** Initial full suite: `mvn test checkstyle:check` passed 121 tests, none failed or skipped, with zero Checkstyle violations, including existing PostgreSQL and Redis Testcontainers tests. Final focused verification: `mvn -Dtest=CreateEntryServiceTest,*ControllerTest,GlobalExceptionHandlerTest test checkstyle:check` passed 44 tests, none failed or skipped, with zero Checkstyle violations. `git diff --check`: clean. Malformed/unreadable JSON uses Spring default HTTP 400; valid JSON with invalid fields retains application INVALID_REQUEST validation.
+- **Tokens.** **2,195,037** total for Issue #5, from the user-provided local usage record (not a product usage-screen reading). Input: 2,183,896; cached input: 2,110,592; cache-write input: 0; output: 11,141; reasoning output: 635. Cached input and reasoning output are reported subcategories, not additional tokens added to the total.
+
 ### Issue 10 - Read-path API tests
 
 - **Completed.** 2026-10-23. Local read-path tests. Write-route cases and the remaining #20 integration are not included.
 - **Purpose.** Test GET entry and serve-next through HTTP with real PostgreSQL and Redis containers. Keep the existing mock-based tests and production code unchanged.
 - **Prompt.**
 
-  > Start issue #10 on a separate branch from the latest main. Reuse the existing test structure and add REST Assured tests with actual PostgreSQL and Redis, not mocked storage. Prepare test data through the repository because the write endpoints are not implemented yet. Verify GET, serve-next, database changes, and cache invalidation. Leave the remaining write-route and #20 cases separate. Run the full checks before committing or pushing.
+  > Start issue #10 on a separate branch from the latest main. Reuse the existing test structure and add REST Assured tests with actual PostgreSQL and Redis, not mocked storage. Prepare test data through the repository because the write endpoints are not implemented yet. Verify GET, serve-next, database changes, and cache invalidation. Leave the remaining write-route and #20 cases separate. Run the full checks before committing or pushing. Commit the local work, merge the latest main while preserving both task records, and rerun the full checks.
 
 - **Files.** `src/test/java/com/cvnstack/controller/ReadPathApiTest.java`, `README.md`, this file.
-- **Verification.** The new class passed all 13 test executions. `mvn clean verify`: all 106 tests passed, none failed or skipped, and zero Checkstyle violations. No production changes were needed.
+- **Verification.** The new class passed all 13 test executions. `mvn clean verify`: all 106 tests passed on the original base. After merging main on 2026-10-24, all 137 tests passed, none failed or skipped, with zero Checkstyle violations. No production changes were needed for the tests.
 - **Tokens.** not yet read from the product usage screen.
