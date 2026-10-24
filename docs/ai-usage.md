@@ -159,3 +159,15 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **Additional UUID files.** `src/main/java/com/cvnstack/error/ApiException.java`, `src/main/java/com/cvnstack/service/PostgresWaitlistStorage.java`, `src/test/java/com/cvnstack/service/PostgresWaitlistStorageTest.java`, this file.
 - **UUID follow-up verification.** `mvn test checkstyle:check`: all 93 tests passed, none failed or skipped; zero Checkstyle violations. Three added PostgreSQL integration tests cover malformed waitlist IDs, malformed entry IDs, existing handler HTTP 400 mapping, and valid missing UUIDs producing service 404 responses. Additional token usage: not yet read from the product usage screen.
 - **Follow-up verification.** `mvn -Dtest=RedisCacheStorageTest,RedisCacheStorageUnitTest test checkstyle:check`: 28 tests passed, none failed or skipped; zero Checkstyle violations. Three added integration tests cover distinct timestamps at nanosecond precision, replacement and clearing of the cached write timestamp, and legacy payloads without `updatedAt`. Additional token usage has not yet been read from the product usage screen; the earlier estimate is unchanged.
+
+### Issue 10 - Read-path API tests
+
+- **Completed.** 2026-10-23. Local read-path tests. Write-route cases and the remaining #20 integration are not included.
+- **Purpose.** Test GET entry and serve-next through HTTP with real PostgreSQL and Redis containers. Keep the existing mock-based tests and production code unchanged.
+- **Prompt.**
+
+  > Start issue #10 on a separate branch from the latest main. Reuse the existing test structure and add REST Assured tests with actual PostgreSQL and Redis, not mocked storage. Prepare test data through the repository because the write endpoints are not implemented yet. Verify GET, serve-next, database changes, and cache invalidation. Leave the remaining write-route and #20 cases separate. Run the full checks before committing or pushing.
+
+- **Files.** `src/test/java/com/cvnstack/controller/ReadPathApiTest.java`, `README.md`, this file.
+- **Verification.** The new class passed all 13 test executions. `mvn clean verify`: all 106 tests passed, none failed or skipped, and zero Checkstyle violations. No production changes were needed.
+- **Tokens.** not yet read from the product usage screen.
