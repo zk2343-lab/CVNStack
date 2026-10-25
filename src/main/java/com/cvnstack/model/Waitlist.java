@@ -35,8 +35,8 @@ public final class Waitlist {
     if (maxLength < 1) {
       throw new IllegalArgumentException("maxLength must be at least 1");
     }
-    if (processingTimePerEntryMinutes < 0) {
-      throw new IllegalArgumentException("processingTimePerEntryMinutes must not be negative");
+    if (processingTimePerEntryMinutes <= 0) {
+      throw new IllegalArgumentException("processingTimePerEntryMinutes must be positive");
     }
     this.maxLength = maxLength;
     this.processingTimePerEntryMinutes = processingTimePerEntryMinutes;
