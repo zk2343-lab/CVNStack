@@ -14,9 +14,10 @@ No third-party source is copied into this repository. Libraries come from Maven 
 
 Install JDK 21 and Maven 3.9 or newer. `java -version` must report 21. If `mvn -version` shows a different Java, set `JAVA_HOME` to the JDK 21 home and run Maven again.
 
-Tests also require a running Docker-compatible runtime. Testcontainers starts an isolated
-`redis:7.4-alpine` container and removes it after testing. No separately installed Redis server
-is needed for tests. Tests are not skipped when Docker is unavailable.
+Tests also require a running Docker-compatible runtime. Testcontainers starts isolated
+`redis:7.4-alpine` and `postgres:16-alpine` containers and removes them after testing.
+No separately installed database servers are needed for tests. Tests are not skipped when
+Docker is unavailable.
 
 With rootless Docker on Linux, set these in the shell that runs Maven:
 
@@ -302,3 +303,19 @@ actual concurrent requests against both stores are verified in #20.
 ## AI-assisted work
 
 Coding agents follow [AGENTS.md](AGENTS.md) and `.agents/skills/`. Usage is recorded in [docs/ai-usage.md](docs/ai-usage.md). A file a model wrote or debugged is marked `AI-assisted` in its header.
+
+## Read-path API tests (issue #10)
+
+`src/test/java/com/cvnstack/controller/ReadPathApiTest.java` runs GET entry and serve-next
+requests through the actual HTTP server with PostgreSQL and Redis containers. No storage
+ports are mocked. Container connections are set by `@DynamicPropertySource` in the test.
+
+```bash
+mvn -Dtest=ReadPathApiTest test
+```
+
+The tests cover ranks, wait estimates, non-waiting entries, priority and insertion order,
+saved call timestamps, cache invalidation, repeated requests, and 400/404/204 responses.
+Setup creates records through `WaitlistStorage`; it does not test the create or add HTTP routes.
+Write-route cases remain with #4, #5, #8, and #9. Cache rebuild, failure recovery, and lock
+integration remain with #20.
