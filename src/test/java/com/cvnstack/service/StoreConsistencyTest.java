@@ -68,6 +68,9 @@ class StoreConsistencyTest {
   private CacheStorage cache;
 
   @Autowired
+  private CacheConsistencyService consistency;
+
+  @Autowired
   private JdbcTemplate jdbc;
 
   @Autowired
@@ -169,6 +172,42 @@ class StoreConsistencyTest {
     assertEquals(EntryStatus.CALLED,
         cache.findEntry(waitlist.id(), urgentId).orElseThrow().status());
     assertEquals(Optional.of(List.of()), cache.findWaitingOrder(waitlist.id()));
+  }
+
+  @Test
+  void delayedOlderPatchWriteDoesNotOverwriteNewerCache() {
+    String normalId = given().port(port).contentType("application/json")
+        .body("{\"name\":\"Alice\",\"priority\":1}")
+        .when().post("/waitlists/{id}/entries", waitlist.id())
+        .then().statusCode(200)
+        .extract().path("entryId");
+    String urgentId = given().port(port).contentType("application/json")
+        .body("{\"name\":\"Bob\",\"priority\":5}")
+        .when().post("/waitlists/{id}/entries", waitlist.id())
+        .then().statusCode(200)
+        .extract().path("entryId");
+
+    given().port(port).contentType("application/json").body("{\"priority\":4}")
+        .when().patch("/waitlists/{id}/entries/{entryId}", waitlist.id(), urgentId)
+        .then().statusCode(200)
+        .body("priority", equalTo(4))
+        .body("position", equalTo(1));
+    Entry latest = storage.findEntry(waitlist.id(), urgentId).orElseThrow();
+    Entry delayedOlderWrite = new Entry(latest.id(), latest.waitlistId(), latest.name(),
+        2, latest.status(), latest.insertedAt(), latest.calledAt(),
+        latest.updatedAt().minusMillis(1));
+
+    consistency.replaceCacheAfterCommit(
+        waitlist.id(), delayedOlderWrite, List.of(normalId, urgentId));
+
+    given().port(port)
+        .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), urgentId)
+        .then().statusCode(200)
+        .body("priority", equalTo(4))
+        .body("position", equalTo(1));
+    assertEquals(4, storage.findEntry(waitlist.id(), urgentId).orElseThrow().priority());
+    assertEquals(4, cache.findEntry(waitlist.id(), urgentId).orElseThrow().priority());
+    assertEquals(Optional.of(List.of(urgentId, normalId)), cache.findWaitingOrder(waitlist.id()));
   }
 
   @Test

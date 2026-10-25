@@ -2,8 +2,12 @@ package com.cvnstack.service;
 
 import com.cvnstack.error.ApiException;
 import com.cvnstack.model.Entry;
+import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +22,7 @@ public class CacheConsistencyService {
   private final WaitlistStorage storage;
   private final CacheStorage cache;
   private final EntryRulesService rules;
+  private final Set<String> staleWaitlists = ConcurrentHashMap.newKeySet();
 
   /**
    * Creates the coordinator for the two storage ports.
@@ -36,8 +41,9 @@ public class CacheConsistencyService {
   /**
    * Writes the committed entry and waiting order through to Redis.
    *
-   * <p>A Redis failure deletes the waitlist rank key and entry cache keys so the
-   * next read rebuilds from PostgreSQL. The committed row is never rolled back.
+   * <p>Older write-throughs do not replace a newer cached payload or rank. A Redis
+   * failure deletes the waitlist rank key and entry cache keys so the next read
+   * rebuilds from PostgreSQL. The committed row is never rolled back.
    *
    * @param waitlistId waitlist whose cache should match the database
    * @param entry committed entry to cache, or {@code null} when only the rank changes
@@ -45,14 +51,12 @@ public class CacheConsistencyService {
    */
   public void replaceCacheAfterCommit(
       String waitlistId, Entry entry, List<String> waitingEntryIds) {
-    try {
+    afterCommit(waitlistId, () -> {
       if (entry != null) {
         cache.putEntry(entry);
       }
-      cache.replaceWaitingOrder(waitlistId, waitingEntryIds);
-    } catch (RuntimeException failedUpdate) {
-      invalidateQuietly(waitlistId);
-    }
+      writeWaitingOrder(waitlistId, entry, waitingEntryIds);
+    });
   }
 
   /**
@@ -62,12 +66,10 @@ public class CacheConsistencyService {
    * @param entryId removed entry
    */
   public void dropEntryAfterCommit(String waitlistId, String entryId) {
-    try {
+    afterCommit(waitlistId, () -> {
       cache.deleteEntry(waitlistId, entryId);
       cache.removeWaitingMember(waitlistId, entryId);
-    } catch (RuntimeException failedUpdate) {
-      invalidateQuietly(waitlistId);
-    }
+    });
   }
 
   /**
@@ -77,12 +79,10 @@ public class CacheConsistencyService {
    * @param called committed {@code CALLED} entry
    */
   public void writeThroughCalledEntry(String waitlistId, Entry called) {
-    try {
+    afterCommit(waitlistId, () -> {
       cache.putEntry(called);
       cache.removeWaitingMember(waitlistId, called.id());
-    } catch (RuntimeException failedUpdate) {
-      invalidateQuietly(waitlistId);
-    }
+    });
   }
 
   /**
@@ -93,15 +93,14 @@ public class CacheConsistencyService {
    * @return persisted entry
    */
   public Entry readEntry(String waitlistId, String entryId) {
+    if (mustBypassCache(waitlistId)) {
+      return requireEntry(waitlistId, entryId);
+    }
     Optional<Entry> cached = cache.findEntry(waitlistId, entryId);
     if (cached != null && cached.isPresent() && waitlistId.equals(cached.get().waitlistId())) {
       return cached.get();
     }
-    Entry entry = storage.findEntry(waitlistId, entryId)
-        .orElseThrow(() -> ApiException.notFound("Entry does not exist"));
-    if (!waitlistId.equals(entry.waitlistId())) {
-      throw ApiException.notFound("Entry does not exist on this waitlist");
-    }
+    Entry entry = requireEntry(waitlistId, entryId);
     try {
       cache.putEntry(entry);
     } catch (RuntimeException ignored) {
@@ -117,6 +116,9 @@ public class CacheConsistencyService {
    * @return waiting entry ids, highest rank first
    */
   public List<String> readWaitingOrder(String waitlistId) {
+    if (mustBypassCache(waitlistId)) {
+      return rankedIdsFromStorage(waitlistId);
+    }
     Optional<List<String>> cached = cache.findWaitingOrder(waitlistId);
     if (cached != null && cached.isPresent()) {
       return cached.get();
@@ -131,23 +133,72 @@ public class CacheConsistencyService {
    * @return waiting entry ids, highest rank first
    */
   public List<String> rebuildWaitingOrder(String waitlistId) {
-    List<String> waitingIds = rules.rankedWaiting(storage.findEntriesByWaitlistId(waitlistId))
-        .stream()
-        .map(Entry::id)
-        .toList();
+    List<Entry> waiting = rules.rankedWaiting(storage.findEntriesByWaitlistId(waitlistId));
+    List<String> waitingIds = waiting.stream().map(Entry::id).toList();
+    Instant revision = waiting.stream()
+        .map(Entry::updatedAt)
+        .filter(Objects::nonNull)
+        .max(Instant::compareTo)
+        .orElse(Instant.EPOCH);
     try {
-      cache.replaceWaitingOrder(waitlistId, waitingIds);
+      cache.replaceWaitingOrderIfNewer(waitlistId, waitingIds, revision);
     } catch (RuntimeException ignored) {
       // Position still comes from the rebuilt PostgreSQL order.
     }
     return waitingIds;
   }
 
-  private void invalidateQuietly(String waitlistId) {
+  private void afterCommit(String waitlistId, Runnable update) {
+    try {
+      update.run();
+      staleWaitlists.remove(waitlistId);
+    } catch (RuntimeException failedUpdate) {
+      invalidateQuietly(waitlistId);
+    }
+  }
+
+  private void writeWaitingOrder(String waitlistId, Entry entry, List<String> waitingEntryIds) {
+    Instant revision = entry == null ? null : entry.updatedAt();
+    if (revision != null) {
+      cache.replaceWaitingOrderIfNewer(waitlistId, waitingEntryIds, revision);
+      return;
+    }
+    cache.replaceWaitingOrder(waitlistId, waitingEntryIds);
+  }
+
+  private Entry requireEntry(String waitlistId, String entryId) {
+    Entry entry = storage.findEntry(waitlistId, entryId)
+        .orElseThrow(() -> ApiException.notFound("Entry does not exist"));
+    if (!waitlistId.equals(entry.waitlistId())) {
+      throw ApiException.notFound("Entry does not exist on this waitlist");
+    }
+    return entry;
+  }
+
+  private List<String> rankedIdsFromStorage(String waitlistId) {
+    return rules.rankedWaiting(storage.findEntriesByWaitlistId(waitlistId))
+        .stream()
+        .map(Entry::id)
+        .toList();
+  }
+
+  private boolean mustBypassCache(String waitlistId) {
+    return staleWaitlists.contains(waitlistId) && !clearStaleCache(waitlistId);
+  }
+
+  private boolean clearStaleCache(String waitlistId) {
     try {
       cache.invalidateWaitlist(waitlistId);
+      staleWaitlists.remove(waitlistId);
+      return true;
     } catch (RuntimeException ignored) {
-      // The next read still prefers PostgreSQL when the keys are missing or unusable.
+      return false;
+    }
+  }
+
+  private void invalidateQuietly(String waitlistId) {
+    if (!clearStaleCache(waitlistId)) {
+      staleWaitlists.add(waitlistId);
     }
   }
 }

@@ -78,7 +78,7 @@ class EntryQueryServiceTest {
     assertEquals(2, response.position());
     assertEquals(5, response.estimatedWaitTimeMinutes());
     verify(cache).putEntry(target);
-    verify(cache).replaceWaitingOrder("wl-1", List.of("e2", "e1"));
+    verify(cache).replaceWaitingOrderIfNewer("wl-1", List.of("e2", "e1"), Instant.EPOCH);
   }
 
   @ParameterizedTest

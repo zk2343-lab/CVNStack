@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -84,7 +85,8 @@ class CreateEntryServiceTest {
     verify(storage).findEntriesByWaitlistId("wl-1");
     verifyNoMoreInteractions(storage);
     verify(cache).putEntry(entries.getFirst());
-    verify(cache).replaceWaitingOrder("wl-1", List.of(response.entryId()));
+    verify(cache).replaceWaitingOrderIfNewer(
+        eq("wl-1"), eq(List.of(response.entryId())), any());
     verifyNoMoreInteractions(cache);
   }
 
@@ -164,7 +166,8 @@ class CreateEntryServiceTest {
     EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 5));
     assertEquals(1, response.position());
     assertEquals(0, response.estimatedWaitTimeMinutes());
-    verify(cache).replaceWaitingOrder("wl-1", List.of(response.entryId(), "older"));
+    verify(cache).replaceWaitingOrderIfNewer(
+        eq("wl-1"), eq(List.of(response.entryId(), "older")), any());
   }
 
   @Test
@@ -176,6 +179,7 @@ class CreateEntryServiceTest {
     EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 3));
     assertEquals(3, response.position());
     assertEquals(10, response.estimatedWaitTimeMinutes());
-    verify(cache).replaceWaitingOrder("wl-1", List.of("urgent", "older", response.entryId()));
+    verify(cache).replaceWaitingOrderIfNewer(
+        eq("wl-1"), eq(List.of("urgent", "older", response.entryId())), any());
   }
 }

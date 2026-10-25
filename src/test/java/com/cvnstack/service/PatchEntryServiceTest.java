@@ -81,7 +81,7 @@ class PatchEntryServiceTest {
     assertEquals(updated, desired.getValue().updatedAt());
     verify(storage, never()).saveEntry(any());
     verify(cache).putEntry(any(Entry.class));
-    verify(cache).replaceWaitingOrder(eq("wl"), any());
+    verify(cache).replaceWaitingOrderIfNewer(eq("wl"), any(), eq(updated.plusSeconds(20)));
   }
 
   @Test

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,11 +48,26 @@ class CacheConsistencyServiceTest {
 
   @Test
   void replaceCacheAfterCommitWritesEntryThenWaitingOrder() {
-    Entry entry = entry("e1", 1);
+    Entry entry = entry("e1", 1, T0.plusSeconds(1));
     consistency.replaceCacheAfterCommit("wl-1", entry, List.of("e1"));
 
     verify(cache).putEntry(entry);
-    verify(cache).replaceWaitingOrder("wl-1", List.of("e1"));
+    verify(cache).replaceWaitingOrderIfNewer("wl-1", List.of("e1"), T0.plusSeconds(1));
+    verify(cache, never()).replaceWaitingOrder(anyString(), any());
+    verify(cache, never()).invalidateWaitlist(anyString());
+  }
+
+  @Test
+  void replaceCacheAfterCommitKeepsTheNewerCachedEntryAndRank() {
+    Entry older = entry("e1", 2, T0.plusSeconds(1));
+    Entry newer = entry("e1", 4, T0.plusSeconds(2));
+    consistency.replaceCacheAfterCommit("wl-1", newer, List.of("e1"));
+    consistency.replaceCacheAfterCommit("wl-1", older, List.of("e2", "e1"));
+
+    verify(cache).putEntry(newer);
+    verify(cache).putEntry(older);
+    verify(cache).replaceWaitingOrderIfNewer("wl-1", List.of("e1"), T0.plusSeconds(2));
+    verify(cache).replaceWaitingOrderIfNewer("wl-1", List.of("e2", "e1"), T0.plusSeconds(1));
     verify(cache, never()).invalidateWaitlist(anyString());
   }
 
@@ -142,10 +158,50 @@ class CacheConsistencyServiceTest {
     when(storage.findEntriesByWaitlistId("wl-1")).thenReturn(List.of(normal, urgent));
 
     assertEquals(List.of("urgent", "normal"), consistency.readWaitingOrder("wl-1"));
-    verify(cache).replaceWaitingOrder("wl-1", List.of("urgent", "normal"));
+    verify(cache).replaceWaitingOrderIfNewer("wl-1", List.of("urgent", "normal"), Instant.EPOCH);
+  }
+
+  @Test
+  void readEntryBypassesAStaleCacheUntilInvalidationSucceeds() {
+    Entry committed = entry("e1", 2, T0.plusSeconds(3));
+    doThrow(new IllegalStateException("Redis write failed")).when(cache).putEntry(any());
+    doThrow(new IllegalStateException("Redis invalidate failed"))
+        .when(cache).invalidateWaitlist("wl-1");
+    when(storage.findEntry("wl-1", "e1")).thenReturn(Optional.of(committed));
+
+    consistency.replaceCacheAfterCommit("wl-1", committed, List.of("e1"));
+
+    assertEquals(committed, consistency.readEntry("wl-1", "e1"));
+    verify(cache, never()).findEntry("wl-1", "e1");
+
+    reset(cache);
+    when(storage.findEntry("wl-1", "e1")).thenReturn(Optional.of(committed));
+    when(cache.findEntry("wl-1", "e1")).thenReturn(Optional.empty());
+
+    assertEquals(committed, consistency.readEntry("wl-1", "e1"));
+    verify(cache).invalidateWaitlist("wl-1");
+    verify(cache).putEntry(committed);
+  }
+
+  @Test
+  void readWaitingOrderBypassesAStaleRankUntilInvalidationSucceeds() {
+    Entry committed = entry("e1", 2, T0.plusSeconds(3));
+    doThrow(new IllegalStateException("Redis write failed")).when(cache).putEntry(any());
+    doThrow(new IllegalStateException("Redis invalidate failed"))
+        .when(cache).invalidateWaitlist("wl-1");
+    when(storage.findEntriesByWaitlistId("wl-1")).thenReturn(List.of(committed));
+
+    consistency.replaceCacheAfterCommit("wl-1", committed, List.of("e1"));
+
+    assertEquals(List.of("e1"), consistency.readWaitingOrder("wl-1"));
+    verify(cache, never()).findWaitingOrder("wl-1");
   }
 
   private static Entry entry(String id, int priority) {
-    return new Entry(id, "wl-1", id, priority, EntryStatus.WAITING, T0);
+    return entry(id, priority, null);
+  }
+
+  private static Entry entry(String id, int priority, Instant updatedAt) {
+    return new Entry(id, "wl-1", id, priority, EntryStatus.WAITING, T0, null, updatedAt);
   }
 }

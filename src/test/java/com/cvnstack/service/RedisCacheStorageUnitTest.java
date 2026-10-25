@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,8 @@ class RedisCacheStorageUnitTest {
   void rejectsDuplicateIdsBeforeWritingToRedis() {
     assertThrows(IllegalArgumentException.class,
         () -> cache.replaceWaitingOrder("wl-1", List.of("a", "a")));
+    assertThrows(IllegalArgumentException.class,
+        () -> cache.replaceWaitingOrderIfNewer("wl-1", List.of("a", "a"), Instant.EPOCH));
     verifyNoInteractions(redis);
   }
 

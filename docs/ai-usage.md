@@ -380,6 +380,20 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **Waitlist entry highlight files.** `src/main/resources/static/visualizer.html`, `src/main/resources/static/visualizer.js`, this file.
 - **Waitlist entry highlight verification.** Browser check: clicking Happy path highlighted Alice, Bob, and that list's Redis keys. Clicking Support desk (no entries) highlighted only that waitlist row.
 - **Waitlist entry highlight tokens.** not yet read from the product usage screen.
+- **PR 35 review follow-up.** 2026-10-25: overlapping PATCH write-throughs keep the newer Redis payload and rank. A failed Redis write plus failed invalidation marks the waitlist stale so GET reads PostgreSQL until the cache is cleared.
+- **PR 35 review prompt.**
+
+  > can you help to address the comment in https://github.com/zk2343-lab/cvnstack/pull/35 think patch should also update the cache right?
+
+- **PR 35 review files.** `src/main/java/com/cvnstack/service/CacheStorage.java`, `src/main/java/com/cvnstack/service/RedisCacheStorage.java`, `src/main/java/com/cvnstack/service/CacheConsistencyService.java`, `src/test/java/com/cvnstack/service/CacheConsistencyServiceTest.java`, `src/test/java/com/cvnstack/service/RedisCacheStorageTest.java`, `src/test/java/com/cvnstack/service/RedisCacheStorageUnitTest.java`, `src/test/java/com/cvnstack/service/StoreConsistencyTest.java`, `src/test/java/com/cvnstack/service/CreateEntryServiceTest.java`, `src/test/java/com/cvnstack/service/PatchEntryServiceTest.java`, `src/test/java/com/cvnstack/service/EntryQueryServiceTest.java`, this file.
+- **PR 35 review verification.** `mvn test checkstyle:check`: 259 tests passed, zero Checkstyle violations.
+- **PR 35 review tokens.** not yet read from the product usage screen.
+- **PR 35 A/B follow-up.** 2026-10-25: live server on port 18080 against isolated PostgreSQL/Redis. 40 overlapping PATCH 2-vs-4 rounds: GET priority, position, and Redis always matched PostgreSQL (25 ended at 2/position 2, 15 at 4/position 1). Redis-outage PATCH to 2 left Redis at 4; GET returned 2 and then repaired the cache.
+- **PR 35 A/B prompt.**
+
+  > run similar A/B test to verify your change work, test server end to end
+
+- **PR 35 A/B tokens.** not yet read from the product usage screen.
 
 ### Issue 12 — JaCoCo branch coverage of at least 55%
 

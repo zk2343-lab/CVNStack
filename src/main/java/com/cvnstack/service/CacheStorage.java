@@ -1,6 +1,7 @@
 package com.cvnstack.service;
 
 import com.cvnstack.model.Entry;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,18 @@ public interface CacheStorage {
   void replaceWaitingOrder(String waitlistId, List<String> entryIdsInOrder);
 
   /**
+   * Replaces the waiting order when {@code revision} is at least as new as the
+   * cached waitlist revision.
+   *
+   * @param waitlistId waitlist id
+   * @param entryIdsInOrder waiting entry ids, highest rank first
+   * @param revision database time of the mutation that produced this order
+   * @return {@code true} when the order was written
+   */
+  boolean replaceWaitingOrderIfNewer(
+      String waitlistId, List<String> entryIdsInOrder, Instant revision);
+
+  /**
    * Reads the cached waiting order when present.
    *
    * @param waitlistId waitlist id
@@ -28,7 +41,7 @@ public interface CacheStorage {
   Optional<List<String>> findWaitingOrder(String waitlistId);
 
   /**
-   * Stores a read-through entry payload.
+   * Stores a read-through entry payload when it is at least as new as the cached one.
    *
    * @param entry entry to cache
    */
