@@ -109,6 +109,20 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
   }
 
   @Override
+  public Optional<Entry> updateEntryIfUnchanged(Entry updatedEntry, Entry expectedCurrent) {
+    return jdbc.query("""
+        UPDATE entries SET status = ?, priority = ?, called_at = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE waitlist_id = ? AND id = ? AND status = ? AND priority = ?
+        RETURNING *
+        """, ENTRY_MAPPER, updatedEntry.status().name(), updatedEntry.priority(),
+        updatedEntry.calledAt() == null ? null : Timestamp.from(updatedEntry.calledAt()),
+        parseUuid(expectedCurrent.waitlistId(), "waitlist id"),
+        parseUuid(expectedCurrent.id(), "entry id"), expectedCurrent.status().name(),
+        expectedCurrent.priority()).stream().findFirst();
+  }
+
+  @Override
   public Entry insertEntryIfCapacityAvailable(Entry entry) {
     return Objects.requireNonNull(capacityTransaction.execute(transaction -> {
       UUID waitlistId = parseUuid(entry.waitlistId(), "waitlist id");

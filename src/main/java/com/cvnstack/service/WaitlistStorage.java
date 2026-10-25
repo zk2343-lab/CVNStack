@@ -48,6 +48,15 @@ public interface WaitlistStorage {
   Entry saveEntry(Entry entry);
 
   /**
+   * Updates an entry only if its persisted status and priority still match the observed row.
+   *
+   * @param updatedEntry desired entry values
+   * @param expectedCurrent previously observed entry
+   * @return persisted row with database timestamp, or empty on deletion or concurrent change
+   */
+  Optional<Entry> updateEntryIfUnchanged(Entry updatedEntry, Entry expectedCurrent);
+
+  /**
    * Locks the owning waitlist and inserts only when WAITING plus CALLED is below capacity.
    *
    * <p>The lock, capacity read, active count, and insert share one transaction.

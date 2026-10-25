@@ -179,3 +179,72 @@ Token totals come from the product's usage screen. If the screen has not been re
   > Move CreateWaitlistRequest from com.cvnstack.model to com.cvnstack.model.request, update all production and test imports, and run relevant tests. Keep the refactor organizational without changing fields, validation, endpoint behavior, domain models, or response DTOs.
 
 - **Follow-up verification.** Java 21 `mvn -Dtest=CreateWaitlistServiceTest,CreateWaitlistControllerTest test checkstyle:check`: all 24 tests passed, none skipped; zero Checkstyle violations. No imports reference the previous request package.
+### Issue 5 - POST /waitlists/{id}/entries - add an entry
+
+- **Completed.** 2026-10-23.
+- **Tool / source.** Codex, https://openai.com/codex/.
+- **Purpose.** Add the create-entry request DTO, controller, and dedicated service. Validate before storage access, default priority to 1, use the atomic capacity insert and persisted entry, calculate waiting information through shared rules, and update entry payload and ranked ID caches explicitly. Keep Issue #20 coordination out of scope.
+- **Prompt.**
+
+  > Implement GitHub Issue #5: `POST /waitlists/{id}/entries — add an entry`.
+  > Work only on Issue #5. Follow the existing project structure and patterns. Do not implement Issue #20 PostgreSQL/Redis consistency coordination in this PR.
+  > Do NOT put `waitlistId` in the request DTO. It already comes from the URL path.
+  > Use `Integer` rather than primitive `int` so omission can be distinguished and mapped to default priority `1`.
+  > Use the returned persisted entry for all subsequent work.
+  > Do not implement ranking logic again inside the new service.
+  > Include this endpoint's REST Assured tests in this PR, as required by Issue #5.
+  > Run the relevant unit tests and REST Assured/controller tests and fix any regressions caused by this implementation.
+
+- **Files.** `src/main/java/com/cvnstack/model/request/CreateEntryRequest.java`, `src/main/java/com/cvnstack/controller/CreateEntryController.java`, `src/main/java/com/cvnstack/service/CreateEntryService.java`, `src/test/java/com/cvnstack/service/CreateEntryServiceTest.java`, `src/test/java/com/cvnstack/controller/CreateEntryControllerTest.java`, this file.
+- **Verification.** Initial full suite: `mvn test checkstyle:check` passed 121 tests, none failed or skipped, with zero Checkstyle violations, including existing PostgreSQL and Redis Testcontainers tests. Final focused verification: `mvn -Dtest=CreateEntryServiceTest,*ControllerTest,GlobalExceptionHandlerTest test checkstyle:check` passed 44 tests, none failed or skipped, with zero Checkstyle violations. `git diff --check`: clean. Malformed/unreadable JSON uses Spring default HTTP 400; valid JSON with invalid fields retains application INVALID_REQUEST validation.
+- **Tokens.** **2,195,037** total for Issue #5, from the user-provided local usage record (not a product usage-screen reading). Input: 2,183,896; cached input: 2,110,592; cache-write input: 0; output: 11,141; reasoning output: 635. Cached input and reasoning output are reported subcategories, not additional tokens added to the total.
+### Issue 8 - PATCH /waitlists/{waitlistId}/entries/{entryId}
+
+- **Completed.** 2026-10-24. Local implementation and testing.
+- **Tool / source.** Codex, https://openai.com/codex/.
+- **Purpose.** Implement partial status and priority updates with same-value no-ops, persisted-state validation, preserved call timestamps, database-owned write timestamps, derived PostgreSQL-backed ranking, and conditional updates that re-read and re-validate on contention. No Redis coordination was added.
+- **Prompt.**
+
+  > Implement GitHub Issue #8: `PATCH /waitlists/{waitlistId}/entries/{entryId}`. Keep this PR focused on PATCH behavior and PostgreSQL-backed correctness. Do not add new Redis coordination logic in this PR. Redis/cache synchronization remains part of Issue #20.
+
+  The detailed request also specified nullable request fields without defaults, a dedicated response with updatedAt and nullable waiting information, validation before reads, no writes for repeated values, existing transition and priority rules, calledAt preservation, a conditional SQL update comparing observed status and priority, database CURRENT_TIMESTAMP and RETURNING, re-reading after conditional-update failure, PostgreSQL-derived positions and estimates, service unit tests, and REST Assured coverage through the real controller and service with mocked storage.
+- **Files.** `src/main/java/com/cvnstack/controller/PatchEntryController.java`, `src/main/java/com/cvnstack/model/request/PatchEntryRequest.java`, `src/main/java/com/cvnstack/model/response/PatchEntryResponse.java`, `src/main/java/com/cvnstack/service/PatchEntryService.java`, `src/main/java/com/cvnstack/service/WaitlistStorage.java`, `src/main/java/com/cvnstack/service/PostgresWaitlistStorage.java`, `src/test/java/com/cvnstack/controller/PatchEntryControllerTest.java`, `src/test/java/com/cvnstack/service/PatchEntryServiceTest.java`, `src/test/java/com/cvnstack/service/PostgresWaitlistStorageTest.java`, this file.
+- **Verification.** `mvn test checkstyle:check`: 163 tests passed, none failed or skipped; zero Checkstyle violations. Includes 22 PATCH service cases, 15 PATCH REST Assured cases, and two added real PostgreSQL tests for conditional updates and competing writers. `git diff --check`: clean.
+- **Tokens.** **1,066,853** total for Issue #8, from the user-provided local usage record (not a product usage-screen reading). Input: 1,056,619; cached input: 1,000,832; cache-write input: 0; output: 10,234; reasoning output: 265. Cached input and reasoning output are reported subcategories, not additional tokens added to the total.
+- **Integer-input follow-up (2026-10-24).** Audited all controller request bodies and configuration before editing. Only `CreateEntryRequest.priority` and `PatchEntryRequest.priority` accept integer JSON input in this checkout. Reproduced default truncation with the project's Spring Jackson builder: 4.5 became 4 and 5.9 became 5. No custom mapper or coercion configuration exists. `CreateWaitlistRequest` and its endpoint are absent, so no waitlist-creation API tests were added. No endpoint intentionally depends on fractional truncation.
+- **Follow-up prompt.**
+
+  > Audit all integer HTTP request fields and existing Jackson configuration before changing anything. If globally safe, reject floating-point JSON numbers for integer targets using centralized Spring Boot configuration. Keep unrelated coercions and service business-range validation unchanged. Add REST Assured tests for every affected existing endpoint, verify rejection before persistence, and confirm valid integer input still succeeds.
+
+- **Follow-up implementation.** Added one `Jackson2ObjectMapperBuilderCustomizer` bean in the existing application configuration to disable `DeserializationFeature.ACCEPT_FLOAT_AS_INT`. This applies in production and HTTP tests without duplicating settings in the test application properties. Decimal and exponent forms, including mathematically whole values such as 5.0 and 5e0, are rejected for integer targets. Numeric-string behavior remains unchanged and is covered by API compatibility cases.
+- **Additional files.** `src/main/java/com/cvnstack/WaitlistApplication.java`, `src/test/java/com/cvnstack/controller/CreateEntryControllerTest.java`, `src/test/java/com/cvnstack/controller/PatchEntryControllerTest.java`, this file.
+- **Follow-up verification.** `mvn test checkstyle:check`: 172 tests passed, none failed or skipped, and zero Checkstyle violations. After adding numeric-string compatibility cases, final `mvn -Dtest=CreateEntryControllerTest,PatchEntryControllerTest test checkstyle:check`: 42 endpoint cases passed, none failed or skipped, and zero Checkstyle violations. Eight floating-point rejection cases verify HTTP 400 with no storage or cache interaction. Normal POST priority 4 and PATCH priority 5 return HTTP 200. Existing service range checks remain unchanged. `git diff --check`: clean.
+- **Additional tokens.** not yet read from the product usage screen; the earlier user-provided local usage record is unchanged.
+
+### Issue 9 - DELETE /waitlists/{waitlistId}/entries/{entryId} - remove an entry
+
+- **Completed.** 2026-10-24.
+- **Tool / source.** Codex, https://openai.com/codex/.
+- **Purpose.** Implement the delete-entry controller, dedicated response DTO, and service using the PostgreSQL storage delete result as the entry existence check. Return HTTP 200 on removal and 404 for missing waitlists, missing entries, and repeated deletes. Keep Redis coordination and ranking outside this issue.
+- **Prompt.**
+
+  > Implement GitHub Issue #9: `DELETE /waitlists/{waitlistId}/entries/{entryId}`. Keep this PR focused on remove-entry behavior only. Do not implement PostgreSQL/Redis coordination from Issue #20 in this PR. Use a dedicated DeleteEntryResponse with message "Entry successfully removed", entryId, and waitlistId. Verify the waitlist exists, delete directly through storage.deleteEntry, and map false to 404. Do not look up the entry first, calculate ranking, or update Redis. Add service unit tests and REST Assured tests through the real controller and service with mocked storage for success, missing waitlist, missing entry, and a second delete. Add purpose and AI-assisted comments and run relevant tests.
+
+- **Files.** `src/main/java/com/cvnstack/controller/DeleteEntryController.java`, `src/main/java/com/cvnstack/model/response/DeleteEntryResponse.java`, `src/main/java/com/cvnstack/service/DeleteEntryService.java`, `src/test/java/com/cvnstack/controller/DeleteEntryControllerTest.java`, `src/test/java/com/cvnstack/service/DeleteEntryServiceTest.java`, this file.
+- **Verification.** `mvn test checkstyle:check`: 133 tests passed, none failed or skipped; zero Checkstyle violations. Includes five new service tests and four new REST Assured tests, plus existing PostgreSQL and Redis integration tests. Storage failures propagate unchanged. `git diff --check`: clean.
+- **Tokens.** **558,484** total for Issue #9, from the user-provided local usage record (not a product usage-screen reading). Input: 553,175; cached input: 516,608; cache-write input: 0; output: 5,309; reasoning output: 57. Cached input and reasoning output are reported subcategories, not additional tokens added to the total.
+
+### Issue 10 - Read-path API tests
+
+- **Completed.** 2026-10-23. Local read-path tests. Write-route cases and the remaining #20 integration are not included.
+- **Purpose.** Test GET entry and serve-next through HTTP with real PostgreSQL and Redis containers. Keep the existing mock-based tests and production code unchanged.
+- **Prompt.**
+
+  > Start issue #10 on a separate branch from the latest main. Reuse the existing test structure and add REST Assured tests with actual PostgreSQL and Redis, not mocked storage. Prepare test data through the repository because the write endpoints are not implemented yet. Verify GET, serve-next, database changes, and cache invalidation. Leave the remaining write-route and #20 cases separate. Run the full checks before committing or pushing. Commit the local work, merge the latest main while preserving both task records, and rerun the full checks.
+
+  > Resolve the conflict in PR #32 after the DELETE changes merge into main. Keep both task records and run the full checks before pushing.
+
+- **Files.** `src/test/java/com/cvnstack/controller/ReadPathApiTest.java`, `README.md`, this file.
+- **Verification.** The new class passed all 13 test executions. `mvn clean verify`: all 106 tests passed on the original base. After merging main on 2026-10-24, all 137 tests passed, none failed or skipped, with zero Checkstyle violations. No production changes were needed for the tests.
+- **Merge follow-up.** 2026-10-24: preserved the #9 and #10 records when merging main after PR #33. `mvn clean verify`: all 146 tests passed, none failed or skipped; zero Checkstyle violations.
+- **Tokens.** not yet read from the product usage screen.
