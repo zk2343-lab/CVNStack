@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -57,8 +58,10 @@ class CreateEntryControllerTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"{\"name\":\"Alice\",\"priority\":3}", "{\"name\":\"Alice\"}"})
-  void createsEntryWithGeneratedIdAndWaitingInformation(String body) {
+  @CsvSource(delimiter = '|', value = {"{\"name\":\"Alice\",\"priority\":3}|3",
+      "{\"name\":\"Alice\",\"priority\":4}|4", "{\"name\":\"Alice\"}|1",
+      "{\"name\":\"Alice\",\"priority\":\"4\"}|4"})
+  void createsEntryWithGeneratedIdAndWaitingInformation(String body, int priority) {
     existingWaitlist();
     AtomicReference<Entry> saved = new AtomicReference<>();
     when(storage.insertEntryIfCapacityAvailable(any())).thenAnswer(call -> {
@@ -69,7 +72,6 @@ class CreateEntryControllerTest {
     Entry older = new Entry("older", "wl-1", "Bob", 5, EntryStatus.WAITING, Instant.EPOCH);
     when(storage.findEntriesByWaitlistId("wl-1"))
         .thenAnswer(call -> List.of(saved.get(), older));
-    int priority = body.contains("priority") ? 3 : 1;
     String id = given().port(port).contentType("application/json").body(body)
         .when().post("/waitlists/wl-1/entries")
         .then().statusCode(200)
@@ -85,6 +87,16 @@ class CreateEntryControllerTest {
     verify(storage).insertEntryIfCapacityAvailable(any());
     verify(cache).putEntry(saved.get());
     verify(cache).replaceWaitingOrder("wl-1", List.of("older", id));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"4.5", "5.9", "4.0", "4e0"})
+  void floatingPointPriorityReturns400BeforePersistence(String priority) {
+    given().port(port).contentType("application/json")
+        .body("{\"name\":\"Alice\",\"priority\":" + priority + "}")
+        .when().post("/waitlists/wl-1/entries")
+        .then().statusCode(400);
+    verifyNoInteractions(storage, cache);
   }
 
   @ParameterizedTest
