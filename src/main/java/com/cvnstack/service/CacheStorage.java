@@ -6,7 +6,6 @@ import java.util.Optional;
 
 /**
  * Cache storage service for waiting order, serve locks, and entry payloads.
- * Redis impl arrives in issue 19.
  *
  * <p>AI-assisted.
  */
@@ -59,6 +58,14 @@ public interface CacheStorage {
    * @param entryId entry id
    */
   void deleteEntry(String waitlistId, String entryId);
+
+  /**
+   * Drops one waiting member from the rank key without touching other entries.
+   *
+   * @param waitlistId waitlist id
+   * @param entryId waiting entry id to remove
+   */
+  void removeWaitingMember(String waitlistId, String entryId);
 
   /**
    * Attempts to take the serve-next lock for a waitlist.

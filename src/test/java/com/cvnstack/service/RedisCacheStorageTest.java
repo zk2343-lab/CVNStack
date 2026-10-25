@@ -104,6 +104,17 @@ class RedisCacheStorageTest {
   }
 
   @Test
+  void removeWaitingMemberLeavesOtherRanks() {
+    cache.replaceWaitingOrder("wl-1", List.of("urgent", "normal"));
+
+    cache.removeWaitingMember("wl-1", "urgent");
+
+    assertEquals(Optional.of(List.of("normal")), cache.findWaitingOrder("wl-1"));
+    cache.removeWaitingMember("wl-1", "normal");
+    assertEquals(Optional.of(List.of()), cache.findWaitingOrder("wl-1"));
+  }
+
+  @Test
   void distinguishesCachedEmptyOrderFromMissingOrder() {
     cache.replaceWaitingOrder("wl-1", List.of());
 

@@ -38,7 +38,7 @@ cd CVNStack
 | Compile and package | `mvn -DskipTests package` | Maven |
 | Unit and API tests | `mvn test` | JUnit 5, Mockito, REST Assured |
 | Style check | `mvn checkstyle:check` | Checkstyle, `config/checkstyle/checkstyle.xml` (Google Java Style) |
-| Tests + style + coverage | `mvn verify` | also JaCoCo under `target/site/jacoco/` |
+| Tests + style + coverage | `mvn verify` | JaCoCo branch coverage must be at least 55%; HTML report under `target/site/jacoco/` |
 | Clean Checkstyle report | committed under `reports/checkstyle/` | regenerated with `mvn checkstyle:check` |
 
 ```bash
@@ -63,9 +63,26 @@ java -jar target/cvnstack-0.1.0-SNAPSHOT.jar
 
 The process listens on port 8080. `GET /health` returns 200 and `{"status":"UP"}`. Stop with Ctrl-C.
 
-Waitlist routes land in issues #4–#9. The issue #6 entry lookup handler is implemented.
-Actual entry requests require a `WaitlistStorage` implementation (issue #18).
-`/health` still works without it; tests provide a mock repository.
+The app uses `PostgresWaitlistStorage` and `RedisCacheStorage`. Local defaults are
+`localhost:5432/cvnstack` and Redis `localhost:6379`. Override them with `DATABASE_URL`,
+`DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, and `REDIS_PORT`.
+
+### Request-flow visualizer
+
+With the app running, open http://localhost:8080/visualizer.html . Markup,
+styles, and behavior live in `visualizer.html`, `visualizer.css`, and
+`visualizer.js`. Each HTTP action is independent: click **Send this request**
+to fire one call, watch the flow animate, and see the live PostgreSQL and Redis
+tables. A preset only preloads a set of those actions with sample JSON; it does
+not run them. The **DEV** key wipes every waitlist and entry from PostgreSQL
+and flushes Redis so a scenario can start over.
+
+```bash
+scripts/visualize-data-flow.sh          # open the visualizer
+scripts/visualize-data-flow.sh live     # start local stores, run presets, write a report
+```
+
+The live report is written to `target/data-flow-report.html` and is not committed.
 
 ## Layout
 
@@ -97,7 +114,9 @@ src/
 ```
 
 There is no production in-memory store. Mocks and fakes stay in unit tests.
-`RedisCacheStorageTest` uses an actual Redis container. PostgreSQL tests arrive with issue #18.
+`RedisCacheStorageTest` uses an actual Redis container. `StoreConsistencyTest` starts
+PostgreSQL and Redis together and exercises add, patch, delete, serve-next, cache
+rebuild, and overlapping serve-next.
 
 ### Quality and data tools (names and config)
 
@@ -108,8 +127,8 @@ There is no production in-memory store. Mocks and fakes stay in unit tests.
 | Mockito | Mocks in unit tests | root `pom.xml` dependency |
 | REST Assured | HTTP API tests | root `pom.xml` dependency |
 | JaCoCo | Coverage on `mvn verify` | root `pom.xml` plugin |
-| Flyway | Schema migrations | arrives with issue #18 (PostgreSQL) |
-| Testcontainers | Isolated Redis in tests; PostgreSQL later | root `pom.xml`, `RedisCacheStorageTest` |
+| Flyway | Schema migrations | `src/main/resources/db/migration/` |
+| Testcontainers | Isolated PostgreSQL and Redis in tests | root `pom.xml`, `StoreConsistencyTest` |
 
 ## Local stores and GCP
 
@@ -117,8 +136,9 @@ PostgreSQL is the source of truth. Redis holds the waiting-order sorted set, the
 
 ### Redis storage (issue #19)
 
-`service.RedisCacheStorage` implements the existing `CacheStorage` interface. It does not
-implement HTTP routes or read from PostgreSQL. Database/cache coordination remains issue #20.
+`service.RedisCacheStorage` implements the existing `CacheStorage` interface.
+`CacheConsistencyService` is the issue #20 coordinator: mutations commit to PostgreSQL
+first, then refresh Redis. A Redis failure deletes that waitlist's rank and entry keys.
 
 - `replaceWaitingOrder` receives ids already sorted by `WaitingOrder`: higher priority first,
   then earlier insertion. The Sorted Set score is the zero-based index in that list.
@@ -146,19 +166,21 @@ Serve locks have a unique owner token and expire after 30 seconds. Release check
 token atomically before deleting the lock. Acquire and release must use the same adapter instance
 and thread, normally in a `try` / `finally` block. Locks are not reentrant or automatically renewed.
 Contention returns `false`; Redis failures propagate to the caller rather than returning stale data.
-A lock can expire during a long operation, so issue #20 must still use a conditional database
-update to prevent claiming an entry twice.
+A lock can expire during a long operation, so serve-next still uses
+`callEntryIfWaiting` to prevent claiming an entry twice.
 
 Lua scripts keep related Redis changes atomic. References:
 [Spring Data Redis scripting](https://docs.spring.io/spring-data/redis/reference/redis/scripting.html),
 [Redis lock ownership](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/),
 [Sorted Set scores](https://redis.io/docs/latest/commands/zadd/).
 
-### Consistency rules
+### Consistency rules (issue #20)
 
-1. A mutation commits to PostgreSQL first, then updates Redis.
+1. Mutations are write-through: commit the PostgreSQL row first, then write the new Redis state.
 2. If the Redis update fails, delete that waitlist's rank key and the entry cache key so the next read rebuilds from the database.
 3. Redis must not be the only copy of waitlist or entry data.
+4. A missing rank or entry key is rebuilt from PostgreSQL before the HTTP response.
+5. `serve-next` takes the lock, updates `WAITING` to `CALLED` only if the row is still `WAITING`, writes the called entry through to Redis, then removes that member from the waiting order.
 
 ### docker-compose (issue #21)
 
@@ -207,7 +229,7 @@ Error body shape: `{ "error": "...", "message": "..." }` (`model.response.ErrorR
 
 ## API endpoints
 
-These six routes match the proposal. Implementation issues are noted.
+These routes match the proposal, plus `GET /waitlists/{id}` for the ordered board.
 Routes that are not implemented return Spring's default 404, not the waitlist `NOT_FOUND` body.
 
 ### `POST /waitlists` (issue #4)
@@ -225,34 +247,41 @@ Routes that are not implemented return Spring's default 404, not the waitlist `N
 - **Errors:** 404 unknown waitlist; 400 invalid fields; 422 capacity exceeded.
 - **Idempotency:** entry creates are **not** idempotent (see deviations).
 
+### `GET /waitlists/{id}`
+
+- **Input:** path `id`. No body.
+- **Success:** 200 with waitlist settings and `entries` in waiting order (higher
+  priority first, then earlier insertion). Non-waiting entries follow, with
+  `position` and estimate null.
+- **Side effects:** none. A repeated get does not change stored data.
+- **Errors:** 404 unknown waitlist; 400 invalid waitlist id.
+
 ### `GET /waitlists/{id}/entries/{entryId}` (issue #6)
 
 - **Input:** path `id`, `entryId`. No body.
 - **Success:** 200 with `waitlistId`, `entryId`, `status`, `priority`, `position`, `estimatedWaitTimeMinutes` (`position` / estimate null when not `WAITING`).
-- **Side effects:** none. This handler does not write to the repository or Redis.
+- **Side effects:** a missing entry or rank key is rebuilt into Redis from PostgreSQL.
 - **Errors:** 404 waitlist or entry missing, or entry on another waitlist.
-- **Implementation:** uses `EntryRulesService` and `WaitEstimate`. Redis/database coordination
-  remains issue #20. Repository-backed use requires issue #18; the current tests use mocks.
-  Repository injection is [lazy](https://docs.spring.io/spring-framework/docs/6.2.x/javadoc-api/org/springframework/context/annotation/Lazy.html)
-  so `/health` can still start before the storage implementation lands.
+- **Implementation:** `EntryQueryService` reads through `CacheConsistencyService`.
+  Position and estimate still come from the rebuilt waiting order, not a stale cache
+  written before the last committed mutation.
 
 ### `POST /waitlists/{id}/serve-next` (issue #7)
 
 - **Input:** path `id`. No body.
 - **Success:** 200 with `waitlistId`, `entryId`, `status: "CALLED"`, and `priority`;
   **204** without a body when no waiting candidate can be claimed.
-- **Side effects:** Records `CALLED` and the call time through a conditional database update.
-  After the update commits, invalidates the waitlist's cached entries and waiting order.
-  Empty and missing waitlists do not change records.
+- **Side effects:** Takes the serve-next lock, records `CALLED` through a conditional
+  database update, writes the called entry through to Redis, then removes that member
+  from the waiting order. If the Redis update fails, the waitlist rank and entry keys
+  are deleted. Empty and missing waitlists do not change records.
 - **Errors:** 404 unknown waitlist.
 - **Repeated requests:** Select the next waiting entry, not necessarily the same entry.
+  Two overlapping calls claim two different entries, or one entry and HTTP 204.
 
-The handler and mock-backed service and HTTP tests are implemented. Real requests still need
-the PostgreSQL adapter (#18) and Redis lock / cross-store integration (#20).
-`WaitlistStorage.callEntryIfWaiting` must update only a matching `WAITING` row, record `calledAt`,
-and return the updated entry after commit. It must not use an unconditional `saveEntry`.
-The service skips a candidate that another request has already claimed. Tests use mocks;
-actual concurrent requests against both stores are verified in #20.
+`WaitlistStorage.callEntryIfWaiting` updates only a matching `WAITING` row, records
+`calledAt`, and returns the updated entry after commit. The service skips a candidate
+that another request has already claimed. `StoreConsistencyTest` runs both stores.
 
 ### `PATCH /waitlists/{id}/entries/{entryId}` (issue #8)
 
@@ -278,10 +307,11 @@ actual concurrent requests against both stores are verified in #20.
 
 1. `POST /waitlists` — create a waitlist.
 2. `POST /waitlists/{id}/entries` — add one or more entries (higher priority optional).
-3. `GET /waitlists/{id}/entries/{entryId}` — read position and estimate.
-4. `POST /waitlists/{id}/serve-next` — call the next waiting entry.
-5. `PATCH /waitlists/{id}/entries/{entryId}` — mark `SERVED` (or `CANCELLED`).
-6. Optionally `DELETE` an entry that should leave the list without being served.
+3. `GET /waitlists/{id}` — read every entry in waiting order.
+4. `GET /waitlists/{id}/entries/{entryId}` — read position and estimate.
+5. `POST /waitlists/{id}/serve-next` — call the next waiting entry.
+6. `PATCH /waitlists/{id}/entries/{entryId}` — mark `SERVED` (or `CANCELLED`).
+7. Optionally `DELETE` an entry that should leave the list without being served.
 
 ### Bad sequences (expected status)
 
@@ -317,5 +347,9 @@ mvn -Dtest=ReadPathApiTest test
 The tests cover ranks, wait estimates, non-waiting entries, priority and insertion order,
 saved call timestamps, cache invalidation, repeated requests, and 400/404/204 responses.
 Setup creates records through `WaitlistStorage`; it does not test the create or add HTTP routes.
-Write-route cases remain with #4, #5, #8, and #9. Cache rebuild, failure recovery, and lock
-integration remain with #20.
+Write-route cases remain with #4, #5, #8, and #9. Cache rebuild, failure recovery, lock
+use, and overlapping serve-next are in `StoreConsistencyTest` (issue #20).
+
+```bash
+mvn -Dtest=StoreConsistencyTest test
+```

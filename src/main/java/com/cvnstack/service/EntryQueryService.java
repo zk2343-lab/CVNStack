@@ -20,17 +20,17 @@ import org.springframework.stereotype.Service;
 public class EntryQueryService {
 
   private final WaitlistStorage storage;
-  private final EntryRulesService rules;
+  private final CacheConsistencyService consistency;
 
   /**
    * Creates the entry lookup service.
    *
-   * @param storage source of waitlists and entries
-   * @param rules shared ranking rules
+   * @param storage source of waitlists
+   * @param consistency cache rebuild from PostgreSQL
    */
-  public EntryQueryService(@Lazy WaitlistStorage storage, EntryRulesService rules) {
+  public EntryQueryService(@Lazy WaitlistStorage storage, CacheConsistencyService consistency) {
     this.storage = storage;
-    this.rules = rules;
+    this.consistency = consistency;
   }
 
   /**
@@ -43,18 +43,21 @@ public class EntryQueryService {
   public EntryResponse getEntry(String waitlistId, String entryId) {
     Waitlist waitlist = storage.findWaitlistById(waitlistId)
         .orElseThrow(() -> ApiException.notFound("Waitlist does not exist"));
-    Entry entry = storage.findEntry(waitlistId, entryId)
-        .orElseThrow(() -> ApiException.notFound("Entry does not exist"));
-    if (!waitlistId.equals(entry.waitlistId())) {
-      throw ApiException.notFound("Entry does not exist on this waitlist");
-    }
+    Entry entry = consistency.readEntry(waitlistId, entryId);
 
     Integer position = null;
     Integer estimatedWaitTimeMinutes = null;
     if (entry.status() == EntryStatus.WAITING) {
-      List<Entry> entries = storage.findEntriesByWaitlistId(waitlistId);
-      position = rules.positionOf(entry, entries)
-          .orElseThrow(() -> ApiException.notFound("Entry is no longer waiting"));
+      List<String> waitingIds = consistency.readWaitingOrder(waitlistId);
+      int index = waitingIds.indexOf(entry.id());
+      if (index < 0) {
+        waitingIds = consistency.rebuildWaitingOrder(waitlistId);
+        index = waitingIds.indexOf(entry.id());
+      }
+      if (index < 0) {
+        throw ApiException.notFound("Entry is no longer waiting");
+      }
+      position = index + 1;
       estimatedWaitTimeMinutes = WaitEstimate.minutes(
           OptionalInt.of(position - 1), waitlist.processingTimePerEntryMinutes()).getAsInt();
     }

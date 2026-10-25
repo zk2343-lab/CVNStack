@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.cvnstack.model.Waitlist;
+import com.cvnstack.service.CacheStorage;
 import com.cvnstack.service.WaitlistStorage;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,9 @@ class DeleteEntryControllerTest {
 
   @MockitoBean
   private WaitlistStorage storage;
+
+  @MockitoBean
+  private CacheStorage cache;
 
   @Test
   void successfulDeleteReturns200AndDedicatedResponse() {

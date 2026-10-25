@@ -42,11 +42,15 @@ class EntryQueryServiceTest {
   @Mock
   private WaitlistStorage storage;
 
+  @Mock
+  private CacheStorage cache;
+
   private EntryQueryService service;
 
   @BeforeEach
   void setUp() {
-    service = new EntryQueryService(storage, new EntryRulesService());
+    service = new EntryQueryService(
+        storage, new CacheConsistencyService(storage, cache, new EntryRulesService()));
   }
 
   @AfterEach
@@ -73,6 +77,8 @@ class EntryQueryServiceTest {
     assertEquals(1, response.priority());
     assertEquals(2, response.position());
     assertEquals(5, response.estimatedWaitTimeMinutes());
+    verify(cache).putEntry(target);
+    verify(cache).replaceWaitingOrder("wl-1", List.of("e2", "e1"));
   }
 
   @ParameterizedTest

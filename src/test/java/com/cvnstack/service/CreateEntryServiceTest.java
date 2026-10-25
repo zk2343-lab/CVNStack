@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,8 +41,9 @@ class CreateEntryServiceTest {
 
   private final WaitlistStorage storage = mock(WaitlistStorage.class);
   private final CacheStorage cache = mock(CacheStorage.class);
-  private final CreateEntryService service =
-      new CreateEntryService(storage, cache, new EntryRulesService());
+  private final CreateEntryService service = new CreateEntryService(
+      storage, new CacheConsistencyService(storage, cache, new EntryRulesService()),
+      new EntryRulesService());
   private final List<Entry> entries = new ArrayList<>();
 
   @BeforeEach
@@ -144,6 +146,15 @@ class CreateEntryServiceTest {
     assertNotEquals(first.entryId(), second.entryId());
     assertEquals(2, entries.size());
     verify(storage, never()).saveEntry(any());
+  }
+
+  @Test
+  void redisFailureAfterInsertInvalidatesAndStillReturnsTheCommittedEntry() {
+    allowInsert();
+    doThrow(new IllegalStateException("Redis unavailable")).when(cache).putEntry(any());
+    EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 1));
+    assertEquals(1, response.position());
+    verify(cache).invalidateWaitlist("wl-1");
   }
 
   @Test

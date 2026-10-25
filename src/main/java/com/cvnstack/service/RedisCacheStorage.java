@@ -70,6 +70,15 @@ public class RedisCacheStorage implements CacheStorage {
       return 1
       """, Long.class);
 
+  private static final RedisScript<Long> REMOVE_WAITING_MEMBER = new DefaultRedisScript<>(
+      """
+      redis.call('ZREM', KEYS[1], ARGV[1])
+      if redis.call('EXISTS', KEYS[2]) == 1 then
+        redis.call('SET', KEYS[2], redis.call('ZCARD', KEYS[1]))
+      end
+      return 1
+      """, Long.class);
+
   private static final RedisScript<Long> INVALIDATE_WAITLIST = new DefaultRedisScript<>(
       """
       for _, entryKey in ipairs(redis.call('SMEMBERS', KEYS[3])) do
@@ -176,6 +185,13 @@ public class RedisCacheStorage implements CacheStorage {
     String indexKey = prefix(waitlistId) + "cached-entries";
     List<String> keys = List.of(key, indexKey);
     redis.execute(DELETE_ENTRY, keys);
+  }
+
+  @Override
+  public void removeWaitingMember(String waitlistId, String entryId) {
+    String keyPrefix = prefix(waitlistId);
+    List<String> keys = List.of(keyPrefix + "waiting", keyPrefix + "waiting-ready");
+    redis.execute(REMOVE_WAITING_MEMBER, keys, entryId);
   }
 
   /**

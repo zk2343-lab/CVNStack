@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -32,12 +34,16 @@ class DeleteEntryServiceTest {
   @Mock
   private WaitlistStorage storage;
 
+  @Mock
+  private CacheStorage cache;
+
   private DeleteEntryService service;
   private InOrder calls;
 
   @BeforeEach
   void setUp() {
-    service = new DeleteEntryService(storage);
+    service = new DeleteEntryService(
+        storage, new CacheConsistencyService(storage, cache, new EntryRulesService()));
     calls = inOrder(storage);
   }
 
@@ -55,6 +61,8 @@ class DeleteEntryServiceTest {
         service.deleteEntry("wl-1", "e-1"));
 
     verifyDeleteCalls();
+    verify(cache).deleteEntry("wl-1", "e-1");
+    verify(cache).removeWaitingMember("wl-1", "e-1");
   }
 
   @Test
@@ -64,6 +72,7 @@ class DeleteEntryServiceTest {
     assertNotFound("Waitlist does not exist");
 
     calls.verify(storage).findWaitlistById("wl-1");
+    verifyNoInteractions(cache);
   }
 
   @Test
@@ -74,6 +83,7 @@ class DeleteEntryServiceTest {
     assertNotFound("Entry does not exist");
 
     verifyDeleteCalls();
+    verifyNoInteractions(cache);
   }
 
   @Test
@@ -98,6 +108,7 @@ class DeleteEntryServiceTest {
         () -> service.deleteEntry("wl-1", "e-1")));
 
     verifyDeleteCalls();
+    verifyNoInteractions(cache);
   }
 
   private void existingWaitlist() {

@@ -53,7 +53,9 @@ class ServeNextServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new ServeNextService(storage, cache, new EntryRulesService());
+    service = new ServeNextService(
+        storage, cache, new CacheConsistencyService(storage, cache, new EntryRulesService()),
+        new EntryRulesService());
   }
 
   @AfterEach
@@ -81,8 +83,11 @@ class ServeNextServiceTest {
     assertEquals(5, response.priority());
     ArgumentCaptor<Instant> calledAt = ArgumentCaptor.forClass(Instant.class);
     InOrder order = inOrder(storage, cache);
+    order.verify(cache).tryAcquireServeLock("wl-1");
     order.verify(storage).callEntryIfWaiting(eq("wl-1"), eq("urgent"), calledAt.capture());
-    order.verify(cache).invalidateWaitlist("wl-1");
+    order.verify(cache).putEntry(any(Entry.class));
+    order.verify(cache).removeWaitingMember("wl-1", "urgent");
+    order.verify(cache).releaseServeLock("wl-1");
     assertTrue(!calledAt.getValue().isBefore(before) && !calledAt.getValue().isAfter(after));
     verify(storage, never()).callEntryIfWaiting(eq("wl-1"), eq("normal"), any());
     verify(storage, never()).callEntryIfWaiting(eq("wl-1"), eq("called"), any());
@@ -108,7 +113,10 @@ class ServeNextServiceTest {
     assertTrue(service.serveNext("wl-1").isEmpty());
 
     verify(storage, never()).callEntryIfWaiting(anyString(), anyString(), any());
-    verifyNoInteractions(cache);
+    verify(cache).tryAcquireServeLock("wl-1");
+    verify(cache).releaseServeLock("wl-1");
+    verify(cache, never()).putEntry(any(Entry.class));
+    verify(cache, never()).invalidateWaitlist(anyString());
   }
 
   @Test
@@ -121,7 +129,10 @@ class ServeNextServiceTest {
     assertTrue(service.serveNext("wl-1").isEmpty());
 
     verify(storage, never()).callEntryIfWaiting(anyString(), anyString(), any());
-    verifyNoInteractions(cache);
+    verify(cache).tryAcquireServeLock("wl-1");
+    verify(cache).releaseServeLock("wl-1");
+    verify(cache, never()).putEntry(any(Entry.class));
+    verify(cache, never()).invalidateWaitlist(anyString());
   }
 
   @Test
@@ -151,9 +162,12 @@ class ServeNextServiceTest {
 
     assertEquals("second", response.entryId());
     InOrder order = inOrder(storage, cache);
+    order.verify(cache).tryAcquireServeLock("wl-1");
     order.verify(storage).callEntryIfWaiting(eq("wl-1"), eq("first"), any());
     order.verify(storage).callEntryIfWaiting(eq("wl-1"), eq("second"), any());
-    order.verify(cache).invalidateWaitlist("wl-1");
+    order.verify(cache).putEntry(any(Entry.class));
+    order.verify(cache).removeWaitingMember("wl-1", "second");
+    order.verify(cache).releaseServeLock("wl-1");
   }
 
   @Test
@@ -165,7 +179,10 @@ class ServeNextServiceTest {
 
     assertTrue(service.serveNext("wl-1").isEmpty());
 
-    verifyNoInteractions(cache);
+    verify(cache).tryAcquireServeLock("wl-1");
+    verify(cache).releaseServeLock("wl-1");
+    verify(cache, never()).putEntry(any(Entry.class));
+    verify(cache, never()).invalidateWaitlist(anyString());
   }
 
   @Test
@@ -177,27 +194,33 @@ class ServeNextServiceTest {
 
     assertThrows(IllegalStateException.class, () -> service.serveNext("wl-1"));
 
-    verifyNoInteractions(cache);
+    verify(cache).tryAcquireServeLock("wl-1");
+    verify(cache).releaseServeLock("wl-1");
+    verify(cache, never()).putEntry(any(Entry.class));
+    verify(cache, never()).invalidateWaitlist(anyString());
   }
 
   @Test
-  void cacheFailureIsNotReportedAsSuccessful() {
+  void redisFailureAfterClaimInvalidatesAndStillReturnsTheCalledEntry() {
     Entry first = entry("first", 5, EntryStatus.WAITING, T0);
     givenEntries(List.of(first));
     givenClaimSucceeds(first);
-    doThrow(new IllegalStateException("Redis unavailable"))
-        .when(cache).invalidateWaitlist("wl-1");
+    doThrow(new IllegalStateException("Redis unavailable")).when(cache).putEntry(any());
 
-    assertThrows(IllegalStateException.class, () -> service.serveNext("wl-1"));
+    ServeNextResponse response = service.serveNext("wl-1").orElseThrow();
 
+    assertEquals("first", response.entryId());
     InOrder order = inOrder(storage, cache);
     order.verify(storage).callEntryIfWaiting(eq("wl-1"), eq("first"), any());
+    order.verify(cache).putEntry(any(Entry.class));
     order.verify(cache).invalidateWaitlist("wl-1");
+    order.verify(cache).releaseServeLock("wl-1");
   }
 
   private void givenEntries(List<Entry> entries) {
     when(storage.findWaitlistById("wl-1")).thenReturn(Optional.of(WAITLIST));
     when(storage.findEntriesByWaitlistId("wl-1")).thenReturn(entries);
+    when(cache.tryAcquireServeLock("wl-1")).thenReturn(true);
   }
 
   private void givenClaimSucceeds(Entry entry) {

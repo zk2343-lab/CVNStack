@@ -248,3 +248,155 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **Verification.** The new class passed all 13 test executions. `mvn clean verify`: all 106 tests passed on the original base. After merging main on 2026-10-24, all 137 tests passed, none failed or skipped, with zero Checkstyle violations. No production changes were needed for the tests.
 - **Merge follow-up.** 2026-10-24: preserved the #9 and #10 records when merging main after PR #33. `mvn clean verify`: all 146 tests passed, none failed or skipped; zero Checkstyle violations.
 - **Tokens.** not yet read from the product usage screen.
+
+### Issue 20 — Keep PostgreSQL and Redis consistent
+
+- **Completed.** 2026-10-24
+- **Purpose.** Wire add, patch, delete, serve-next, and entry reads so PostgreSQL commits first, Redis follows, failed Redis writes invalidate rank and entry keys, missing keys rebuild from PostgreSQL, and overlapping serve-next claims distinct entries or one entry plus 204. Added a dual-store Testcontainers suite and a request-flow visualizer with preset cases.
+- **Prompt.**
+
+  > can you work on https://github.com/zk2343-lab/CVNStack/issues/20
+  >
+  > Connect all components to make them work seamless. I would also need a script to show visualizer how the data flows on requests. define a few testcases preset.
+
+- **Files.** `src/main/java/com/cvnstack/service/CacheConsistencyService.java`, `src/main/java/com/cvnstack/service/CacheStorage.java`, `src/main/java/com/cvnstack/service/RedisCacheStorage.java`, `src/main/java/com/cvnstack/service/CreateEntryService.java`, `src/main/java/com/cvnstack/service/PatchEntryService.java`, `src/main/java/com/cvnstack/service/DeleteEntryService.java`, `src/main/java/com/cvnstack/service/ServeNextService.java`, `src/main/java/com/cvnstack/service/EntryQueryService.java`, `src/main/resources/application.properties`, `src/test/java/com/cvnstack/service/StoreConsistencyTest.java`, `src/test/java/com/cvnstack/service/CacheConsistencyServiceTest.java`, `scripts/visualize-data-flow.sh`, `scripts/data-flow-visualizer.html`, `README.md`, this file, and the existing service/controller tests updated for cache coordination.
+- **Verification.** `mvn test`: 238 tests passed, none failed or skipped, including `StoreConsistencyTest` against PostgreSQL and Redis containers. `mvn checkstyle:check`: zero violations after renaming test methods that used `PostgreSQL`.
+- **Follow-up.** 2026-10-24: live visualizer now executes presets against the API, shows raw JSON bodies plus HTTP/curl, and reads PostgreSQL/Redis through `GET /debug/stores`.
+- **Additional files.** `src/main/java/com/cvnstack/controller/StoreSnapshotController.java`, `src/main/java/com/cvnstack/service/StoreSnapshotService.java`, `src/main/java/com/cvnstack/model/response/StoreSnapshotResponse.java`, `src/main/resources/static/visualizer.html`, `src/main/java/com/cvnstack/WaitlistApplication.java`.
+- **Tokens.** not yet read from the product usage screen.
+- **Visualizer layout follow-up.** 2026-10-24: restyled the request-flow page to a light, roomier layout and added a one-click DEV key that wipes PostgreSQL waitlists/entries and flushes Redis.
+- **Follow-up prompt.**
+
+  > restructure visualizer layout to make it light, room, more oragnized and modern smoothing appearance, add one click to dev hack key to remove all entries in both redis and postgres db
+
+- **Follow-up files.** `src/main/resources/static/visualizer.html`, `scripts/data-flow-visualizer.html`, `src/main/java/com/cvnstack/controller/StoreSnapshotController.java`, `src/main/java/com/cvnstack/service/StoreSnapshotService.java`, `src/test/java/com/cvnstack/service/StoreConsistencyTest.java`, `README.md`, this file.
+- **Follow-up verification.** `mvn -Dtest=StoreConsistencyTest test`: 5 tests passed, including `wipeStoresClearsPostgresRowsAndRedisKeys`. `mvn checkstyle:check`: zero violations. Browser check on http://localhost:8080/visualizer.html: create waitlist and add entry populated both stores; DEV wipe returned 204 and left 0 lists, 0 entries, and 0 Redis keys.
+- **Follow-up tokens.** not yet read from the product usage screen.
+- **Store hover follow-up.** 2026-10-24: hovering a PostgreSQL entry or Redis key highlights the matching row and related keys across both store tables.
+- **Hover prompt.**
+
+  > add hovering effects on entry shown in PostGres and redis, higlight if they are related keys
+
+- **Hover files.** `src/main/resources/static/visualizer.html`, `scripts/data-flow-visualizer.html`, this file.
+- **Hover verification.** Browser check with Alice and Bob in both stores: hovering Alice lights her Redis entry/waiting/cached-entries keys in green, and the waitlist plus Bob rows in blue. Hovering Alice's Redis entry key lights the matching PostgreSQL row.
+- **Hover tokens.** not yet read from the product usage screen.
+- **Context bar follow-up.** 2026-10-24: removed the waitlistId / entryId / Last action fields from the visualizer toolbar. IDs are still stored in memory for path interpolation.
+- **Context bar prompt.**
+
+  > remove this small block
+  >
+  > waitlistId
+  > 10744b76-ef49-43ca-91ad-81a8ffecd95c
+  > entryId
+  > filled after POST .../entries
+  > Last action
+  > POST /waitlists → 200
+
+- **Context bar files.** `src/main/resources/static/visualizer.html`, `scripts/data-flow-visualizer.html`, this file.
+- **Context bar tokens.** not yet read from the product usage screen.
+- **Entry-scoped hover follow-up.** 2026-10-24: hover now stays on one entry — its waitlist and Redis keys that mention that entry id. Sibling entries and waitlist-only keys stay dim.
+- **Entry-scoped hover prompt.**
+
+  > The hovering effect should happen per row. for example, if i hover on entry 02bbe51b-ea43-46e2-af59-5ac34b5c5c00. just the waitlist it belongs to  and associetd redis
+
+- **Entry-scoped hover files.** `src/main/resources/static/visualizer.html`, `scripts/data-flow-visualizer.html`, this file.
+- **Entry-scoped hover tokens.** not yet read from the product usage screen.
+- **Write-through follow-up.** 2026-10-25: serve-next now writes the called entry through to Redis instead of deleting the payload, then removes only the waiting-order member. Add, patch, and delete already wrote Redis after the PostgreSQL commit.
+- **Write-through prompt.**
+
+  > can you help to make this service write through path then?
+
+- **Write-through files.** `src/main/java/com/cvnstack/service/CacheConsistencyService.java`, `src/main/java/com/cvnstack/service/ServeNextService.java`, `src/test/java/com/cvnstack/service/CacheConsistencyServiceTest.java`, `src/test/java/com/cvnstack/service/ServeNextServiceTest.java`, `src/test/java/com/cvnstack/service/StoreConsistencyTest.java`, `src/test/java/com/cvnstack/controller/ServeNextControllerTest.java`, `src/test/java/com/cvnstack/controller/ReadPathApiTest.java`, `README.md`, `.agents/skills/cvnstack-code-change/reference.md`, `src/main/resources/static/visualizer.html`, `scripts/data-flow-visualizer.html`, this file.
+- **Write-through verification.** `mvn test checkstyle:check`: 242 tests passed, none failed or skipped; zero Checkstyle violations.
+- **Write-through tokens.** not yet read from the product usage screen.
+- **Visualizer verification follow-up.** 2026-10-25: replayed the happy-path set on the live visualizer after restarting the app. After serve-next, PostgreSQL and Redis both showed Bob as `CALLED` and the waiting order kept only Alice. `GET` Bob returned `CALLED` with null position; `GET` Alice returned position 1. Re-ran the write-through test slice: 41 tests passed.
+- **Visualizer verification prompt.**
+
+  > use the visualizer to veirfuy change with tests
+
+- **Visualizer verification files.** `src/main/resources/static/visualizer.html`, this file.
+- **Visualizer verification tokens.** not yet read from the product usage screen.
+
+### Visualizer split and GET waitlist
+
+- **Completed.** 2026-10-25
+- **Purpose.** Split the request-flow visualizer into HTML, CSS, and JS. Add `GET /waitlists/{id}` so a waitlist returns every entry in waiting order, or 404/400 when the list is missing or the id is invalid.
+- **Prompt.**
+
+  > 1. on visualizer, decouple the file a abit.It is growing too monolith. best to 2-3 files
+  > 2. create a GET wilist API that will return all entries of the waitlist in orders. if absent return error acocordingly
+
+- **Files.** `src/main/resources/static/visualizer.html`, `src/main/resources/static/visualizer.css`, `src/main/resources/static/visualizer.js`, `scripts/data-flow-visualizer.html`, `src/main/java/com/cvnstack/controller/WaitlistQueryController.java`, `src/main/java/com/cvnstack/service/WaitlistQueryService.java`, `src/main/java/com/cvnstack/model/response/WaitlistDetailResponse.java`, `src/test/java/com/cvnstack/controller/WaitlistQueryControllerTest.java`, `src/test/java/com/cvnstack/service/WaitlistQueryServiceTest.java`, `src/test/java/com/cvnstack/controller/ReadPathApiTest.java`, `README.md`, this file.
+- **Verification.** `mvn test`: 251 tests passed, none failed or skipped. `mvn checkstyle:check`: zero violations. Live visualizer happy path `GET /waitlists/{id}` returned Bob at position 1 then Alice at position 2. Missing id returned 404 `NOT_FOUND`; `invalid-id` returned 400 `INVALID_REQUEST`.
+- **Tokens.** not yet read from the product usage screen.
+- **Fit-to-screen follow-up.** 2026-10-25: kept REST invocation and Redis on one viewport. Wide store tables no longer stretch the page; actions, REST, PostgreSQL, and Redis share the remaining height and scroll inside their panels.
+- **Fit-to-screen prompt.**
+
+  > in visualizer, the Redis and REST invocation went off screen. cana you make them fit to the swame screen
+
+- **Fit-to-screen files.** `src/main/resources/static/visualizer.html`, `src/main/resources/static/visualizer.css`, this file.
+- **Fit-to-screen verification.** Browser check on http://localhost:8080/visualizer.html in a 580×921 pane: page scroll width/height matched the viewport; REST and Redis stayed fully on screen. Happy-path stores showed 2 lists, 2 entries, and 5 Redis keys. Hover still highlighted related rows. Sending POST /waitlists filled the REST request/curl/response panels.
+- **Fit-to-screen tokens.** not yet read from the product usage screen.
+- **Pipeline removal follow-up.** 2026-10-25: removed the Client / Controller / Service / PostgreSQL / Redis flow blocks and the animation that lit them.
+- **Pipeline removal prompt.**
+
+  > in visaulizer - remove blocks (Client Your click Controller HTTP route Service Rules PostgreSQL Commit first Redis Write-through)
+
+- **Pipeline removal files.** `src/main/resources/static/visualizer.html`, `src/main/resources/static/visualizer.css`, `src/main/resources/static/visualizer.js`, this file.
+- **Pipeline removal verification.** Browser check: those five headings are gone from the page. Sending POST /waitlists still filled REST invocation and left the action, PostgreSQL, and Redis panels working.
+- **Pipeline removal tokens.** not yet read from the product usage screen.
+- **Panel chrome follow-up.** 2026-10-25: each visualizer panel has minimize (−) and expand (□) controls. Minimize collapses to the title bar; expand fills the workspace. Added a short Redis type legend.
+- **Panel chrome prompt.**
+
+  > 1. explain to me why there are set zset and hash, 3 entries in redis?
+  > 2. aadd an expand/minimize icon for each panels on visiulizer
+
+- **Panel chrome files.** `src/main/resources/static/visualizer.html`, `src/main/resources/static/visualizer.css`, `src/main/resources/static/visualizer.js`, this file.
+- **Panel chrome verification.** Browser check: minimize Redis collapsed the panel to 58px and left PostgreSQL expanded. Expand Redis hid the other panels and filled the workspace (560×742). Restore brought the four-panel layout back.
+- **Panel chrome tokens.** not yet read from the product usage screen.
+- **Preset scenario follow-up.** 2026-10-25: the header lede now describes the selected preset. All actions explains the waitlist service. Added Capacity set (422 when maxLength is 1) and Priority bump set (reorder after a PATCH to priority 5).
+- **Preset scenario prompt.**
+
+  > on visualizer, this text area should show what the preset scenario is; if deafult, explain what wailist service is - "Click one HTTP action. A preset only loads sample requests — it does not run them. Hover a PostgreSQL entry or Redis key to highlight the matching rows across both stores."
+  >
+  > and help me to add 2 more examples presets please
+
+- **Preset scenario files.** `src/main/resources/static/visualizer.html`, `src/main/resources/static/visualizer.css`, `src/main/resources/static/visualizer.js`, this file.
+- **Preset scenario verification.** Browser check on http://localhost:8080/visualizer.html: All actions showed the service explanation. Capacity set and Priority bump set appeared as new pills. Switching those presets and Happy path updated the header and the action cards.
+- **Preset scenario tokens.** not yet read from the product usage screen.
+- **Pinned highlight follow-up.** 2026-10-25: clicking a PostgreSQL or Redis store row keeps the related-row highlight. Clicking elsewhere clears it and hover works again.
+- **Pinned highlight prompt.**
+
+  > on visualizer hovering effects, if i click that row(entity), the highlight will stay. it will go away i click else where - and then renable the hovering effects
+
+- **Pinned highlight files.** `src/main/resources/static/visualizer.html`, `src/main/resources/static/visualizer.css`, `src/main/resources/static/visualizer.js`, this file.
+- **Pinned highlight verification.** Browser check on http://localhost:8080/visualizer.html: clicking Alice kept her waitlist and Redis keys highlighted after mouseleave. Clicking the page title cleared the highlight. Hovering Alice again restored the same related-row lights.
+- **Pinned highlight tokens.** not yet read from the product usage screen.
+- **Waitlist entry highlight follow-up.** 2026-10-25: hovering or clicking a waitlist now lights every PostgreSQL entry on that list plus its Redis keys. Another waitlist and its people stay dim.
+- **Waitlist entry highlight prompt.**
+
+  > on visualizer, seletcing the wailist should also higlight entires associted with it
+
+- **Waitlist entry highlight files.** `src/main/resources/static/visualizer.html`, `src/main/resources/static/visualizer.js`, this file.
+- **Waitlist entry highlight verification.** Browser check: clicking Happy path highlighted Alice, Bob, and that list's Redis keys. Clicking Support desk (no entries) highlighted only that waitlist row.
+- **Waitlist entry highlight tokens.** not yet read from the product usage screen.
+
+### Issue 12 — JaCoCo branch coverage of at least 55%
+
+- **Completed.** 2026-10-25
+- **Purpose.** Enforce a 55% JaCoCo branch-coverage gate on `mvn verify`. The HTML report stays under `target/site/jacoco/` and is not committed.
+- **Prompt.**
+
+  > cool, help to make a commit, this is for completing both https://github.com/zk2343-lab/CVNStack/issues/20 and https://github.com/zk2343-lab/CVNStack/issues/12
+  >
+  > Make sure to tag as this is final commit considered part of our first iteration MVP.  v1.0
+
+- **Files.** `pom.xml`, `README.md`, `.gitignore`, this file.
+- **Verification.** `mvn verify`: 251 tests passed, zero Checkstyle violations, JaCoCo branch coverage 217/265 (81.9%), line coverage 92.3%. The 55% branch check passed.
+- **Tokens.** not yet read from the product usage screen.
+- **Report follow-up.** 2026-10-25: dropped the generated `reports/jacoco/` HTML from git. JaCoCo stays in `pom.xml`; the report is produced under `target/site/jacoco/` on `mvn verify`.
+- **Report follow-up prompt.**
+
+  > wait, jaccoco should be part of git. pleasae drop those and rebumit the PR
+
+- **Report follow-up files.** `README.md`, `.gitignore`, this file.

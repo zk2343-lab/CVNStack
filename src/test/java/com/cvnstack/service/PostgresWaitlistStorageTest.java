@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import com.cvnstack.error.ApiException;
 import com.cvnstack.error.ErrorCode;
@@ -124,7 +125,8 @@ class PostgresWaitlistStorageTest {
     assertTrue(storage.findEntry(missingId, missingId).isEmpty());
     assertTrue(storage.callEntryIfWaiting(missingId, missingId, INSERTED).isEmpty());
     assertFalse(storage.deleteEntry(missingId, missingId));
-    EntryQueryService service = new EntryQueryService(storage, new EntryRulesService());
+    EntryQueryService service = new EntryQueryService(storage,
+        new CacheConsistencyService(storage, mock(CacheStorage.class), new EntryRulesService()));
     ApiException missingWaitlist = assertThrows(ApiException.class,
         () -> service.getEntry(missingId, missingId));
     assertEquals(HttpStatus.NOT_FOUND, missingWaitlist.status());
