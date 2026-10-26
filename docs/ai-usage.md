@@ -445,3 +445,9 @@ Token totals come from the product's usage screen. If the screen has not been re
   > no, for check styel report, i am looking for a generated report like the jacococ. revert to READ me on checkstyle insgtruction please
 
 - **HTML follow-up files.** `reports/checkstyle/`, `.gitattributes`, `README.md`, this file.
+- **Browser-link follow-up.** 2026-10-25: `mvn checkstyle:checkstyle` does not print a URL. Added `antrun:run@print-checkstyle-report` so the same command line prints a `file://` link to `target/reports/checkstyle.html`.
+- **Browser-link prompt.**
+
+  > mvn checkstyle:checkstyle should at end pirn out a link that i can open the genrated report on browser
+
+- **Browser-link files.** `pom.xml`, `README.md`, `reports/checkstyle/README.md`, this file.

@@ -39,7 +39,7 @@ cd CVNStack
 | Unit and API tests | `mvn test` | JUnit 5, Mockito, REST Assured |
 | Style check | `mvn checkstyle:check` | Checkstyle, `config/checkstyle/checkstyle.xml` (Google Java Style) |
 | Tests + style + coverage | `mvn verify` | JaCoCo; 55% branch gate. Committed HTML: [`reports/jacoco/index.html`](reports/jacoco/index.html) (**82% branch**, 92% line). `mvn verify` also writes `target/site/jacoco/`. |
-| Clean Checkstyle report | committed under `reports/checkstyle/` | regenerated with `mvn checkstyle:check` |
+| Clean Checkstyle report | committed under `reports/checkstyle/` | `mvn checkstyle:checkstyle antrun:run@print-checkstyle-report` writes HTML and prints a `file://` link |
 
 ```bash
 mvn test
