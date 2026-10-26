@@ -255,6 +255,43 @@
           },
           { ...toolbox[2], title: "Get waitlist after bump" }
         ]
+      },
+      rankingRule: {
+        title: "Ranking set",
+        note: "Add two same-priority people, then a higher-priority one, and GET the order.",
+        scenario: "Ranking set: add Early then Late at priority 1, then Urgent "
+            + "at priority 5, and GET the waitlist. Waiting order is priority "
+            + "first (5 before 1), then insertion time (Early before Late). "
+            + "The GET and the Redis waiting zset should be Urgent, Early, "
+            + "Late.",
+        actions: [
+          {
+            ...toolbox[0],
+            body: {
+              name: "Ranking desk",
+              maxLength: 10,
+              processingTimePerEntryMinutes: 5
+            }
+          },
+          {
+            ...toolbox[1],
+            title: "Add Early p1",
+            body: { name: "Early", priority: 1 }
+          },
+          {
+            ...toolbox[1],
+            id: "addLate",
+            title: "Add Late p1",
+            body: { name: "Late", priority: 1 }
+          },
+          {
+            ...toolbox[1],
+            id: "addUrgent",
+            title: "Add Urgent p5",
+            body: { name: "Urgent", priority: 5 }
+          },
+          { ...toolbox[2], title: "Get waitlist in rank order" }
+        ]
       }
     };
 

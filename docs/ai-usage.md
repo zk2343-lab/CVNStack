@@ -394,6 +394,14 @@ Token totals come from the product's usage screen. If the screen has not been re
   > run similar A/B test to verify your change work, test server end to end
 
 - **PR 35 A/B tokens.** not yet read from the product usage screen.
+- **Ranking preset follow-up.** 2026-10-25: added Ranking set. Early and Late at priority 1, then Urgent at 5, so GET order is priority first and insertion time second.
+- **Ranking preset prompt.**
+
+  > Can we have one more entry to show the ranking rule - priority first, then insertion time? add another preset to demonstrate thaat
+
+- **Ranking preset files.** `src/main/resources/static/visualizer.js`, this file.
+- **Ranking preset verification.** Browser check on http://localhost:8080/visualizer.html: Ranking set showed Early p1, Late p1, Urgent p5. After those sends, GET order was Urgent position 1, Early position 2, Late position 3.
+- **Ranking preset tokens.** not yet read from the product usage screen.
 
 ### Issue 12 — JaCoCo branch coverage of at least 55%
 
