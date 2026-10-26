@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StoreSnapshotController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.controller</a> &gt; <span class="el_source">StoreSnapshotController.java</span></div><h1>StoreSnapshotController.java</h1><pre class="source lang-java linenums">package com.cvnstack.controller;
+
+import com.cvnstack.model.response.StoreSnapshotResponse;
+import com.cvnstack.service.StoreSnapshotService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * Exposes live PostgreSQL and Redis contents to the request-flow visualizer.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@RestController
+public class StoreSnapshotController {
+
+  private final StoreSnapshotService snapshot;
+
+  /**
+   * Creates the snapshot controller.
+   *
+   * @param snapshot store reader
+   */
+<span class="fc" id="L25">  public StoreSnapshotController(StoreSnapshotService snapshot) {</span>
+<span class="fc" id="L26">    this.snapshot = snapshot;</span>
+<span class="fc" id="L27">  }</span>
+
+  /**
+   * Returns the current waitlist tables and Redis keys.
+   *
+   * @return 200 with the snapshot
+   */
+  @GetMapping(&quot;/debug/stores&quot;)
+  public ResponseEntity&lt;StoreSnapshotResponse&gt; stores() {
+<span class="fc" id="L36">    return ResponseEntity.ok(snapshot.snapshot());</span>
+  }
+
+  /**
+   * Empties Redis so a later GET can demonstrate cache rebuild.
+   *
+   * @return 204
+   */
+  @PostMapping(&quot;/debug/flush-redis&quot;)
+  public ResponseEntity&lt;Void&gt; flushRedis() {
+<span class="nc" id="L46">    snapshot.flushRedis();</span>
+<span class="nc" id="L47">    return ResponseEntity.noContent().build();</span>
+  }
+
+  /**
+   * Dev reset: removes every PostgreSQL waitlist and entry, then flushes Redis.
+   *
+   * @return 204
+   */
+  @PostMapping(&quot;/debug/wipe-stores&quot;)
+  public ResponseEntity&lt;Void&gt; wipeStores() {
+<span class="fc" id="L57">    snapshot.wipeStores();</span>
+<span class="fc" id="L58">    return ResponseEntity.noContent().build();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

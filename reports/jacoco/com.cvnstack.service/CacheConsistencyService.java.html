@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CacheConsistencyService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.service</a> &gt; <span class="el_source">CacheConsistencyService.java</span></div><h1>CacheConsistencyService.java</h1><pre class="source lang-java linenums">package com.cvnstack.service;
+
+import com.cvnstack.error.ApiException;
+import com.cvnstack.model.Entry;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+/**
+ * Write-through coordinator: PostgreSQL commits first, then Redis is updated to match.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@Service
+public class CacheConsistencyService {
+
+  private final WaitlistStorage storage;
+  private final CacheStorage cache;
+  private final EntryRulesService rules;
+<span class="fc" id="L25">  private final Set&lt;String&gt; staleWaitlists = ConcurrentHashMap.newKeySet();</span>
+
+  /**
+   * Creates the coordinator for the two storage ports.
+   *
+   * @param storage PostgreSQL source of truth
+   * @param cache Redis rank, entry, and lock adapter
+   * @param rules waiting-order rules used to rebuild ranks
+   */
+  public CacheConsistencyService(
+<span class="fc" id="L35">      @Lazy WaitlistStorage storage, CacheStorage cache, EntryRulesService rules) {</span>
+<span class="fc" id="L36">    this.storage = storage;</span>
+<span class="fc" id="L37">    this.cache = cache;</span>
+<span class="fc" id="L38">    this.rules = rules;</span>
+<span class="fc" id="L39">  }</span>
+
+  /**
+   * Writes the committed entry and waiting order through to Redis.
+   *
+   * &lt;p&gt;Older write-throughs do not replace a newer cached payload or rank. A Redis
+   * failure deletes the waitlist rank key and entry cache keys so the next read
+   * rebuilds from PostgreSQL. The committed row is never rolled back.
+   *
+   * @param waitlistId waitlist whose cache should match the database
+   * @param entry committed entry to cache, or {@code null} when only the rank changes
+   * @param waitingEntryIds current waiting ids, highest rank first
+   */
+  public void replaceCacheAfterCommit(
+      String waitlistId, Entry entry, List&lt;String&gt; waitingEntryIds) {
+<span class="fc" id="L54">    afterCommit(waitlistId, () -&gt; {</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">      if (entry != null) {</span>
+<span class="fc" id="L56">        cache.putEntry(entry);</span>
+      }
+<span class="fc" id="L58">      writeWaitingOrder(waitlistId, entry, waitingEntryIds);</span>
+<span class="fc" id="L59">    });</span>
+<span class="fc" id="L60">  }</span>
+
+  /**
+   * Drops one committed deletion from Redis, or invalidates the waitlist on failure.
+   *
+   * @param waitlistId owning waitlist
+   * @param entryId removed entry
+   */
+  public void dropEntryAfterCommit(String waitlistId, String entryId) {
+<span class="fc" id="L69">    afterCommit(waitlistId, () -&gt; {</span>
+<span class="fc" id="L70">      cache.deleteEntry(waitlistId, entryId);</span>
+<span class="fc" id="L71">      cache.removeWaitingMember(waitlistId, entryId);</span>
+<span class="fc" id="L72">    });</span>
+<span class="fc" id="L73">  }</span>
+
+  /**
+   * Writes the called entry through to Redis and drops it from the waiting order.
+   *
+   * @param waitlistId owning waitlist
+   * @param called committed {@code CALLED} entry
+   */
+  public void writeThroughCalledEntry(String waitlistId, Entry called) {
+<span class="fc" id="L82">    afterCommit(waitlistId, () -&gt; {</span>
+<span class="fc" id="L83">      cache.putEntry(called);</span>
+<span class="fc" id="L84">      cache.removeWaitingMember(waitlistId, called.id());</span>
+<span class="fc" id="L85">    });</span>
+<span class="fc" id="L86">  }</span>
+
+  /**
+   * Returns a cached entry, or loads it from PostgreSQL and stores the rebuilt payload.
+   *
+   * @param waitlistId owning waitlist
+   * @param entryId entry to read
+   * @return persisted entry
+   */
+  public Entry readEntry(String waitlistId, String entryId) {
+<span class="fc bfc" id="L96" title="All 2 branches covered.">    if (mustBypassCache(waitlistId)) {</span>
+<span class="fc" id="L97">      return requireEntry(waitlistId, entryId);</span>
+    }
+<span class="fc" id="L99">    Optional&lt;Entry&gt; cached = cache.findEntry(waitlistId, entryId);</span>
+<span class="pc bpc" id="L100" title="2 of 6 branches missed.">    if (cached != null &amp;&amp; cached.isPresent() &amp;&amp; waitlistId.equals(cached.get().waitlistId())) {</span>
+<span class="fc" id="L101">      return cached.get();</span>
+    }
+<span class="fc" id="L103">    Entry entry = requireEntry(waitlistId, entryId);</span>
+    try {
+<span class="fc" id="L105">      cache.putEntry(entry);</span>
+<span class="nc" id="L106">    } catch (RuntimeException ignored) {</span>
+      // The response still uses the PostgreSQL row.
+<span class="fc" id="L108">    }</span>
+<span class="fc" id="L109">    return entry;</span>
+  }
+
+  /**
+   * Returns the cached waiting order, or rebuilds it from PostgreSQL before responding.
+   *
+   * @param waitlistId waitlist to rank
+   * @return waiting entry ids, highest rank first
+   */
+  public List&lt;String&gt; readWaitingOrder(String waitlistId) {
+<span class="fc bfc" id="L119" title="All 2 branches covered.">    if (mustBypassCache(waitlistId)) {</span>
+<span class="fc" id="L120">      return rankedIdsFromStorage(waitlistId);</span>
+    }
+<span class="fc" id="L122">    Optional&lt;List&lt;String&gt;&gt; cached = cache.findWaitingOrder(waitlistId);</span>
+<span class="pc bpc" id="L123" title="1 of 4 branches missed.">    if (cached != null &amp;&amp; cached.isPresent()) {</span>
+<span class="fc" id="L124">      return cached.get();</span>
+    }
+<span class="fc" id="L126">    return rebuildWaitingOrder(waitlistId);</span>
+  }
+
+  /**
+   * Rebuilds the rank key from PostgreSQL and replaces the cached order when Redis allows it.
+   *
+   * @param waitlistId waitlist to rebuild
+   * @return waiting entry ids, highest rank first
+   */
+  public List&lt;String&gt; rebuildWaitingOrder(String waitlistId) {
+<span class="fc" id="L136">    List&lt;Entry&gt; waiting = rules.rankedWaiting(storage.findEntriesByWaitlistId(waitlistId));</span>
+<span class="fc" id="L137">    List&lt;String&gt; waitingIds = waiting.stream().map(Entry::id).toList();</span>
+<span class="fc" id="L138">    Instant revision = waiting.stream()</span>
+<span class="fc" id="L139">        .map(Entry::updatedAt)</span>
+<span class="fc" id="L140">        .filter(Objects::nonNull)</span>
+<span class="fc" id="L141">        .max(Instant::compareTo)</span>
+<span class="fc" id="L142">        .orElse(Instant.EPOCH);</span>
+    try {
+<span class="fc" id="L144">      cache.replaceWaitingOrderIfNewer(waitlistId, waitingIds, revision);</span>
+<span class="nc" id="L145">    } catch (RuntimeException ignored) {</span>
+      // Position still comes from the rebuilt PostgreSQL order.
+<span class="fc" id="L147">    }</span>
+<span class="fc" id="L148">    return waitingIds;</span>
+  }
+
+  private void afterCommit(String waitlistId, Runnable update) {
+    try {
+<span class="fc" id="L153">      update.run();</span>
+<span class="fc" id="L154">      staleWaitlists.remove(waitlistId);</span>
+<span class="fc" id="L155">    } catch (RuntimeException failedUpdate) {</span>
+<span class="fc" id="L156">      invalidateQuietly(waitlistId);</span>
+<span class="fc" id="L157">    }</span>
+<span class="fc" id="L158">  }</span>
+
+  private void writeWaitingOrder(String waitlistId, Entry entry, List&lt;String&gt; waitingEntryIds) {
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">    Instant revision = entry == null ? null : entry.updatedAt();</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    if (revision != null) {</span>
+<span class="fc" id="L163">      cache.replaceWaitingOrderIfNewer(waitlistId, waitingEntryIds, revision);</span>
+<span class="fc" id="L164">      return;</span>
+    }
+<span class="fc" id="L166">    cache.replaceWaitingOrder(waitlistId, waitingEntryIds);</span>
+<span class="fc" id="L167">  }</span>
+
+  private Entry requireEntry(String waitlistId, String entryId) {
+<span class="fc" id="L170">    Entry entry = storage.findEntry(waitlistId, entryId)</span>
+<span class="fc" id="L171">        .orElseThrow(() -&gt; ApiException.notFound(&quot;Entry does not exist&quot;));</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">    if (!waitlistId.equals(entry.waitlistId())) {</span>
+<span class="fc" id="L173">      throw ApiException.notFound(&quot;Entry does not exist on this waitlist&quot;);</span>
+    }
+<span class="fc" id="L175">    return entry;</span>
+  }
+
+  private List&lt;String&gt; rankedIdsFromStorage(String waitlistId) {
+<span class="fc" id="L179">    return rules.rankedWaiting(storage.findEntriesByWaitlistId(waitlistId))</span>
+<span class="fc" id="L180">        .stream()</span>
+<span class="fc" id="L181">        .map(Entry::id)</span>
+<span class="fc" id="L182">        .toList();</span>
+  }
+
+  private boolean mustBypassCache(String waitlistId) {
+<span class="fc bfc" id="L186" title="All 4 branches covered.">    return staleWaitlists.contains(waitlistId) &amp;&amp; !clearStaleCache(waitlistId);</span>
+  }
+
+  private boolean clearStaleCache(String waitlistId) {
+    try {
+<span class="fc" id="L191">      cache.invalidateWaitlist(waitlistId);</span>
+<span class="fc" id="L192">      staleWaitlists.remove(waitlistId);</span>
+<span class="fc" id="L193">      return true;</span>
+<span class="fc" id="L194">    } catch (RuntimeException ignored) {</span>
+<span class="fc" id="L195">      return false;</span>
+    }
+  }
+
+  private void invalidateQuietly(String waitlistId) {
+<span class="fc bfc" id="L200" title="All 2 branches covered.">    if (!clearStaleCache(waitlistId)) {</span>
+<span class="fc" id="L201">      staleWaitlists.add(waitlistId);</span>
+    }
+<span class="fc" id="L203">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

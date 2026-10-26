@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateWaitlistController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.controller</a> &gt; <span class="el_source">CreateWaitlistController.java</span></div><h1>CreateWaitlistController.java</h1><pre class="source lang-java linenums">package com.cvnstack.controller;
+
+import com.cvnstack.model.Waitlist;
+import com.cvnstack.model.request.CreateWaitlistRequest;
+import com.cvnstack.model.response.WaitlistResponse;
+import com.cvnstack.service.CreateWaitlistService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * Handles requests to create a waitlist.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@RestController
+public class CreateWaitlistController {
+
+  private final CreateWaitlistService service;
+
+  /**
+   * Creates the controller with the creation service.
+   *
+   * @param service waitlist creation service
+   */
+<span class="fc" id="L27">  public CreateWaitlistController(CreateWaitlistService service) {</span>
+<span class="fc" id="L28">    this.service = service;</span>
+<span class="fc" id="L29">  }</span>
+
+  /**
+   * Creates a waitlist from client settings.
+   *
+   * @param request settings to validate and store
+   * @return 200 with the stored identifier and settings
+   */
+  @PostMapping(&quot;/waitlists&quot;)
+  public ResponseEntity&lt;WaitlistResponse&gt; createWaitlist(
+      @RequestBody CreateWaitlistRequest request) {
+<span class="fc" id="L40">    Waitlist saved = service.createWaitlist(request);</span>
+<span class="fc" id="L41">    return ResponseEntity.ok(new WaitlistResponse(</span>
+<span class="fc" id="L42">        saved.id(), saved.name(), saved.maxLength(), saved.processingTimePerEntryMinutes()));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateEntryService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.service</a> &gt; <span class="el_source">CreateEntryService.java</span></div><h1>CreateEntryService.java</h1><pre class="source lang-java linenums">package com.cvnstack.service;
+
+import com.cvnstack.error.ApiException;
+import com.cvnstack.model.Entry;
+import com.cvnstack.model.EntryStatus;
+import com.cvnstack.model.Waitlist;
+import com.cvnstack.model.request.CreateEntryRequest;
+import com.cvnstack.model.response.EntryResponse;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+/**
+ * Adds an entry with atomic capacity enforcement and calculates its waiting information.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@Service
+public class CreateEntryService {
+
+  private final WaitlistStorage storage;
+  private final CacheConsistencyService consistency;
+  private final EntryRulesService rules;
+
+  /**
+   * Creates the service using shared storage ports and ranking rules.
+   *
+   * @param storage persistent waitlist and entry storage
+   * @param consistency PostgreSQL-then-Redis coordinator
+   * @param rules shared entry rules
+   */
+  public CreateEntryService(
+<span class="fc" id="L35">      @Lazy WaitlistStorage storage, CacheConsistencyService consistency, EntryRulesService rules) {</span>
+<span class="fc" id="L36">    this.storage = storage;</span>
+<span class="fc" id="L37">    this.consistency = consistency;</span>
+<span class="fc" id="L38">    this.rules = rules;</span>
+<span class="fc" id="L39">  }</span>
+
+  /**
+   * Validates and inserts one waiting entry, then returns its position and estimate.
+   *
+   * @param waitlistId owning waitlist id from the path
+   * @param request entry name and optional priority
+   * @return persisted entry details with waiting information
+   */
+  public EntryResponse createEntry(String waitlistId, CreateEntryRequest request) {
+<span class="fc bfc" id="L49" title="All 6 branches covered.">    if (request == null || request.name() == null || request.name().isBlank()) {</span>
+<span class="fc" id="L50">      throw ApiException.badRequest(&quot;Name must not be blank&quot;);</span>
+    }
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    int priority = request.priority() == null ? Entry.DEFAULT_PRIORITY : request.priority();</span>
+<span class="fc bfc" id="L53" title="All 4 branches covered.">    if (priority &lt; Entry.MIN_PRIORITY || priority &gt; Entry.MAX_PRIORITY) {</span>
+<span class="fc" id="L54">      throw ApiException.badRequest(&quot;Priority must be between 1 and 5&quot;);</span>
+    }
+<span class="fc" id="L56">    Waitlist waitlist = storage.findWaitlistById(waitlistId)</span>
+<span class="fc" id="L57">        .orElseThrow(() -&gt; ApiException.notFound(&quot;Waitlist does not exist&quot;));</span>
+<span class="fc" id="L58">    Entry entry = new Entry(UUID.randomUUID().toString(), waitlistId, request.name(),</span>
+<span class="fc" id="L59">        priority, EntryStatus.WAITING, Instant.now());</span>
+<span class="fc" id="L60">    Entry savedEntry = storage.insertEntryIfCapacityAvailable(entry);</span>
+<span class="fc" id="L61">    List&lt;Entry&gt; entries = storage.findEntriesByWaitlistId(waitlistId);</span>
+<span class="fc" id="L62">    List&lt;Entry&gt; ranked = rules.rankedWaiting(entries);</span>
+<span class="fc" id="L63">    int position = rules.positionOf(savedEntry, ranked).orElseThrow();</span>
+<span class="fc" id="L64">    int estimate = rules.estimateMinutes(</span>
+<span class="fc" id="L65">        savedEntry, ranked, waitlist.processingTimePerEntryMinutes()).orElseThrow();</span>
+<span class="fc" id="L66">    consistency.replaceCacheAfterCommit(</span>
+<span class="fc" id="L67">        waitlistId, savedEntry, ranked.stream().map(Entry::id).toList());</span>
+<span class="fc" id="L68">    return new EntryResponse(savedEntry.waitlistId(), savedEntry.id(), savedEntry.status(),</span>
+<span class="fc" id="L69">        savedEntry.priority(), position, estimate);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

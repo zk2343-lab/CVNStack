@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Entry.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.model</a> &gt; <span class="el_source">Entry.java</span></div><h1>Entry.java</h1><pre class="source lang-java linenums">package com.cvnstack.model;
+
+import java.time.Instant;
+import java.util.Objects;
+
+/**
+ * Single person or item on a waitlist.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+public final class Entry {
+
+  /** Lowest urgency; used when the caller omits priority. */
+  public static final int DEFAULT_PRIORITY = 1;
+
+  /** Inclusive lower bound for priority. */
+  public static final int MIN_PRIORITY = 1;
+
+  /** Inclusive upper bound; most urgent. */
+  public static final int MAX_PRIORITY = 5;
+
+  private final String id;
+  private final String waitlistId;
+  private final String name;
+  private final int priority;
+  private final EntryStatus status;
+  private final Instant insertedAt;
+  private final Instant calledAt;
+  private final Instant updatedAt;
+
+  /**
+   * Creates an entry value.
+   *
+   * @param id assigned entry identifier
+   * @param waitlistId owning waitlist identifier
+   * @param name entry display name
+   * @param priority urgency from {@link #MIN_PRIORITY} to {@link #MAX_PRIORITY}
+   * @param status current lifecycle status
+   * @param insertedAt insertion time used for tie-breaking
+   */
+  public Entry(
+      final String id,
+      final String waitlistId,
+      final String name,
+      final int priority,
+      final EntryStatus status,
+      final Instant insertedAt) {
+<span class="fc" id="L48">    this(id, waitlistId, name, priority, status, insertedAt, null);</span>
+<span class="fc" id="L49">  }</span>
+
+  /**
+   * Creates an entry value including its stored call timestamp.
+   *
+   * @param id assigned entry identifier
+   * @param waitlistId owning waitlist identifier
+   * @param name entry display name
+   * @param priority urgency from MIN_PRIORITY to MAX_PRIORITY
+   * @param status current lifecycle status
+   * @param insertedAt insertion time used for tie-breaking
+   * @param calledAt call time, or null when no call time is recorded
+   */
+  public Entry(
+      final String id,
+      final String waitlistId,
+      final String name,
+      final int priority,
+      final EntryStatus status,
+      final Instant insertedAt,
+      final Instant calledAt) {
+<span class="fc" id="L70">    this(id, waitlistId, name, priority, status, insertedAt, calledAt, null);</span>
+<span class="fc" id="L71">  }</span>
+
+  /**
+   * Creates an entry including the database write timestamp.
+   *
+   * @param id assigned entry identifier
+   * @param waitlistId owning waitlist identifier
+   * @param name entry display name
+   * @param priority urgency from MIN_PRIORITY to MAX_PRIORITY
+   * @param status current lifecycle status
+   * @param insertedAt business insertion time
+   * @param calledAt supplied call time, or null
+   * @param updatedAt database write time, or null before persistence
+   */
+  public Entry(
+      final String id,
+      final String waitlistId,
+      final String name,
+      final int priority,
+      final EntryStatus status,
+      final Instant insertedAt,
+      final Instant calledAt,
+<span class="fc" id="L93">      final Instant updatedAt) {</span>
+<span class="fc" id="L94">    this.id = Objects.requireNonNull(id, &quot;id&quot;);</span>
+<span class="fc" id="L95">    this.waitlistId = Objects.requireNonNull(waitlistId, &quot;waitlistId&quot;);</span>
+<span class="fc" id="L96">    this.name = Objects.requireNonNull(name, &quot;name&quot;);</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">    if (name.isBlank()) {</span>
+<span class="nc" id="L98">      throw new IllegalArgumentException(&quot;name must not be blank&quot;);</span>
+    }
+<span class="fc bfc" id="L100" title="All 4 branches covered.">    if (priority &lt; MIN_PRIORITY || priority &gt; MAX_PRIORITY) {</span>
+<span class="fc" id="L101">      throw new IllegalArgumentException(</span>
+          &quot;priority must be between &quot; + MIN_PRIORITY + &quot; and &quot; + MAX_PRIORITY);
+    }
+<span class="fc" id="L104">    this.priority = priority;</span>
+<span class="fc" id="L105">    this.status = Objects.requireNonNull(status, &quot;status&quot;);</span>
+<span class="fc" id="L106">    this.insertedAt = Objects.requireNonNull(insertedAt, &quot;insertedAt&quot;);</span>
+<span class="fc" id="L107">    this.calledAt = calledAt;</span>
+<span class="fc" id="L108">    this.updatedAt = updatedAt;</span>
+<span class="fc" id="L109">  }</span>
+
+  /**
+   * Returns the entry identifier.
+   *
+   * @return id
+   */
+  public String id() {
+<span class="fc" id="L117">    return id;</span>
+  }
+
+  /**
+   * Returns the owning waitlist identifier.
+   *
+   * @return waitlist id
+   */
+  public String waitlistId() {
+<span class="fc" id="L126">    return waitlistId;</span>
+  }
+
+  /**
+   * Returns the entry display name.
+   *
+   * @return name
+   */
+  public String name() {
+<span class="fc" id="L135">    return name;</span>
+  }
+
+  /**
+   * Returns the urgency tier; higher values are served sooner.
+   *
+   * @return priority
+   */
+  public int priority() {
+<span class="fc" id="L144">    return priority;</span>
+  }
+
+  /**
+   * Returns the current lifecycle status.
+   *
+   * @return status
+   */
+  public EntryStatus status() {
+<span class="fc" id="L153">    return status;</span>
+  }
+
+  /**
+   * Returns the insertion timestamp used when priorities tie.
+   *
+   * @return inserted at
+   */
+  public Instant insertedAt() {
+<span class="fc" id="L162">    return insertedAt;</span>
+  }
+
+  /**
+   * Returns the stored call timestamp.
+   *
+   * @return call time, or null when no call time is recorded
+   */
+  public Instant calledAt() {
+<span class="fc" id="L171">    return calledAt;</span>
+  }
+
+  /**
+   * Returns the last database write time, independently of insertion and call times.
+   *
+   * @return database timestamp, or null before persistence
+   */
+  public Instant updatedAt() {
+<span class="fc" id="L180">    return updatedAt;</span>
+  }
+
+  /**
+   * Returns a copy with a different status.
+   *
+   * @param newStatus replacement status
+   * @return new entry value
+   */
+  public Entry withStatus(final EntryStatus newStatus) {
+<span class="fc" id="L190">    return new Entry(id, waitlistId, name, priority, newStatus, insertedAt, calledAt, updatedAt);</span>
+  }
+
+  /**
+   * Returns a copy with a different priority.
+   *
+   * @param newPriority replacement priority
+   * @return new entry value
+   */
+  public Entry withPriority(final int newPriority) {
+<span class="fc" id="L200">    return new Entry(id, waitlistId, name, newPriority, status, insertedAt, calledAt, updatedAt);</span>
+  }
+
+  @Override
+  public boolean equals(final Object other) {
+<span class="fc bfc" id="L205" title="All 2 branches covered.">    if (this == other) {</span>
+<span class="fc" id="L206">      return true;</span>
+    }
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">    if (!(other instanceof Entry entry)) {</span>
+<span class="nc" id="L209">      return false;</span>
+    }
+<span class="fc bfc" id="L211" title="All 2 branches covered.">    return priority == entry.priority</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">        &amp;&amp; id.equals(entry.id)</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        &amp;&amp; waitlistId.equals(entry.waitlistId)</span>
+<span class="pc bpc" id="L214" title="1 of 4 branches missed.">        &amp;&amp; name.equals(entry.name)</span>
+        &amp;&amp; status == entry.status
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">        &amp;&amp; insertedAt.equals(entry.insertedAt)</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">        &amp;&amp; Objects.equals(calledAt, entry.calledAt)</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">        &amp;&amp; Objects.equals(updatedAt, entry.updatedAt);</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L223">    return Objects.hash(id, waitlistId, name, priority, status, insertedAt, calledAt, updatedAt);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

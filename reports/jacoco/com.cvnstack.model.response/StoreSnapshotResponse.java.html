@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StoreSnapshotResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.model.response</a> &gt; <span class="el_source">StoreSnapshotResponse.java</span></div><h1>StoreSnapshotResponse.java</h1><pre class="source lang-java linenums">package com.cvnstack.model.response;
+
+import java.util.List;
+
+/**
+ * Read-only dump of PostgreSQL rows and Redis keys for the request-flow visualizer.
+ *
+ * &lt;p&gt;AI-assisted.
+ *
+ * @param waitlists persisted waitlist rows
+ * @param entries persisted entry rows
+ * @param redis Redis keys used by the waitlist cache
+ */
+<span class="fc" id="L14">public record StoreSnapshotResponse(</span>
+    List&lt;WaitlistSnapshot&gt; waitlists,
+    List&lt;EntrySnapshot&gt; entries,
+    List&lt;RedisSnapshot&gt; redis) {
+
+  /**
+   * One PostgreSQL waitlist row.
+   *
+   * @param id waitlist id
+   * @param name unique name
+   * @param maxLength capacity
+   * @param processingTimePerEntryMinutes minutes per entry
+   */
+<span class="fc" id="L27">  public record WaitlistSnapshot(</span>
+      String id, String name, int maxLength, int processingTimePerEntryMinutes) {}
+
+  /**
+   * One PostgreSQL entry row.
+   *
+   * @param id entry id
+   * @param waitlistId owning waitlist
+   * @param name display name
+   * @param priority urgency
+   * @param status lifecycle status
+   * @param insertedAt insertion time
+   * @param calledAt call time, or null
+   * @param updatedAt last write time
+   */
+<span class="nc" id="L42">  public record EntrySnapshot(</span>
+      String id,
+      String waitlistId,
+      String name,
+      int priority,
+      String status,
+      String insertedAt,
+      String calledAt,
+      String updatedAt) {}
+
+  /**
+   * One Redis key and its printable value.
+   *
+   * @param key Redis key
+   * @param type Redis type name
+   * @param value printable contents
+   */
+<span class="nc" id="L59">  public record RedisSnapshot(String key, String type, String value) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
