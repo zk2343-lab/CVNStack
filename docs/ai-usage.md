@@ -422,3 +422,20 @@ Token totals come from the product's usage screen. If the screen has not been re
   > wait, jaccoco should be part of git. pleasae drop those and rebumit the PR
 
 - **Report follow-up files.** `README.md`, `.gitignore`, this file.
+
+### Checkstyle report refresh and JaCoCo README path (#11, #12)
+
+- **Completed.** 2026-10-25
+- **Purpose.** Regenerate the committed Checkstyle report against current `main` and point the README at `reports/jacoco/index.html` (82% branch coverage).
+- **Prompt.**
+
+  > I closed #15.
+  >
+  > can you help me to address
+  >
+  > Regenerate Checkstyle against current main and commit reports/checkstyle/.
+  > Point the README at reports/jacoco/index.html and the 82% branch number.
+
+- **Files.** `reports/checkstyle/README.md`, `reports/checkstyle/cvnstack-checkstyle-result.xml`, `README.md`, this file.
+- **Verification.** `mvn checkstyle:checkstyle checkstyle:check` (JDK 21): zero violations on 77 Java files. JaCoCo committed HTML remains 82% branch / 92% line.
+- **Tokens.** not yet read from the product usage screen.
