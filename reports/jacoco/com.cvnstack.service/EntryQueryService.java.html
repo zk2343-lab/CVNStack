@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntryQueryService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.service</a> &gt; <span class="el_source">EntryQueryService.java</span></div><h1>EntryQueryService.java</h1><pre class="source lang-java linenums">package com.cvnstack.service;
+
+import com.cvnstack.error.ApiException;
+import com.cvnstack.model.Entry;
+import com.cvnstack.model.EntryStatus;
+import com.cvnstack.model.WaitEstimate;
+import com.cvnstack.model.Waitlist;
+import com.cvnstack.model.response.EntryResponse;
+import java.util.List;
+import java.util.OptionalInt;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+/**
+ * Reads an entry and calculates its current position and wait estimate.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@Service
+public class EntryQueryService {
+
+  private final WaitlistStorage storage;
+  private final CacheConsistencyService consistency;
+
+  /**
+   * Creates the entry lookup service.
+   *
+   * @param storage source of waitlists
+   * @param consistency cache rebuild from PostgreSQL
+   */
+<span class="fc" id="L31">  public EntryQueryService(@Lazy WaitlistStorage storage, CacheConsistencyService consistency) {</span>
+<span class="fc" id="L32">    this.storage = storage;</span>
+<span class="fc" id="L33">    this.consistency = consistency;</span>
+<span class="fc" id="L34">  }</span>
+
+  /**
+   * Returns an entry without changing stored data.
+   *
+   * @param waitlistId owning waitlist id
+   * @param entryId entry id
+   * @return entry details and waiting information
+   */
+  public EntryResponse getEntry(String waitlistId, String entryId) {
+<span class="fc" id="L44">    Waitlist waitlist = storage.findWaitlistById(waitlistId)</span>
+<span class="fc" id="L45">        .orElseThrow(() -&gt; ApiException.notFound(&quot;Waitlist does not exist&quot;));</span>
+<span class="fc" id="L46">    Entry entry = consistency.readEntry(waitlistId, entryId);</span>
+
+<span class="fc" id="L48">    Integer position = null;</span>
+<span class="fc" id="L49">    Integer estimatedWaitTimeMinutes = null;</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">    if (entry.status() == EntryStatus.WAITING) {</span>
+<span class="fc" id="L51">      List&lt;String&gt; waitingIds = consistency.readWaitingOrder(waitlistId);</span>
+<span class="fc" id="L52">      int index = waitingIds.indexOf(entry.id());</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">      if (index &lt; 0) {</span>
+<span class="nc" id="L54">        waitingIds = consistency.rebuildWaitingOrder(waitlistId);</span>
+<span class="nc" id="L55">        index = waitingIds.indexOf(entry.id());</span>
+      }
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">      if (index &lt; 0) {</span>
+<span class="nc" id="L58">        throw ApiException.notFound(&quot;Entry is no longer waiting&quot;);</span>
+      }
+<span class="fc" id="L60">      position = index + 1;</span>
+<span class="fc" id="L61">      estimatedWaitTimeMinutes = WaitEstimate.minutes(</span>
+<span class="fc" id="L62">          OptionalInt.of(position - 1), waitlist.processingTimePerEntryMinutes()).getAsInt();</span>
+    }
+
+<span class="fc" id="L65">    return new EntryResponse(waitlistId, entry.id(), entry.status(), entry.priority(),</span>
+        position, estimatedWaitTimeMinutes);
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

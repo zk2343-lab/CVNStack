@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.error</a> &gt; <span class="el_source">ApiException.java</span></div><h1>ApiException.java</h1><pre class="source lang-java linenums">package com.cvnstack.error;
+
+import org.springframework.http.HttpStatus;
+
+/**
+ * Application exception mapped to an HTTP status and API error code.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+public final class ApiException extends RuntimeException {
+
+  private final HttpStatus status;
+  private final String errorCode;
+
+  private ApiException(
+      final HttpStatus status, final String errorCode, final String message) {
+<span class="fc" id="L17">    super(message);</span>
+<span class="fc" id="L18">    this.status = status;</span>
+<span class="fc" id="L19">    this.errorCode = errorCode;</span>
+<span class="fc" id="L20">  }</span>
+
+  /**
+   * Bad field, empty update, or other invalid request content.
+   *
+   * @param message explanation
+   * @return exception mapped to HTTP 400
+   */
+  public static ApiException invalidRequest(final String message) {
+<span class="fc" id="L29">    return new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST, message);</span>
+  }
+
+  /**
+   * Malformed request input, including an invalid identifier.
+   *
+   * @param message explanation
+   * @return exception mapped to HTTP 400
+   */
+  public static ApiException badRequest(final String message) {
+<span class="fc" id="L39">    return invalidRequest(message);</span>
+  }
+
+  /**
+   * Illegal status change.
+   *
+   * @param message explanation
+   * @return exception mapped to HTTP 400
+   */
+  public static ApiException invalidStateTransition(final String message) {
+<span class="fc" id="L49">    return new ApiException(</span>
+        HttpStatus.BAD_REQUEST, ErrorCode.INVALID_STATE_TRANSITION, message);
+  }
+
+  /**
+   * Missing waitlist or entry.
+   *
+   * @param message explanation
+   * @return exception mapped to HTTP 404
+   */
+  public static ApiException notFound(final String message) {
+<span class="fc" id="L60">    return new ApiException(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND, message);</span>
+  }
+
+  /**
+   * Waitlist name already exists.
+   *
+   * @param message explanation
+   * @return exception mapped to HTTP 409
+   */
+  public static ApiException conflict(final String message) {
+<span class="fc" id="L70">    return new ApiException(HttpStatus.CONFLICT, ErrorCode.CONFLICT, message);</span>
+  }
+
+  /**
+   * Waitlist is full.
+   *
+   * @param message explanation
+   * @return exception mapped to HTTP 422
+   */
+  public static ApiException capacityExceeded(final String message) {
+<span class="fc" id="L80">    return new ApiException(</span>
+        HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.CAPACITY_EXCEEDED, message);
+  }
+
+  /**
+   * Returns the HTTP status for this failure.
+   *
+   * @return status
+   */
+  public HttpStatus status() {
+<span class="fc" id="L90">    return status;</span>
+  }
+
+  /**
+   * Returns the machine-readable error code.
+   *
+   * @return error code
+   */
+  public String errorCode() {
+<span class="fc" id="L99">    return errorCode;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

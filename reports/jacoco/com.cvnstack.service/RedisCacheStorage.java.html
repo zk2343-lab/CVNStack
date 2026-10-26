@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RedisCacheStorage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.service</a> &gt; <span class="el_source">RedisCacheStorage.java</span></div><h1>RedisCacheStorage.java</h1><pre class="source lang-java linenums">package com.cvnstack.service;
+
+import com.cvnstack.model.Entry;
+import com.cvnstack.model.EntryStatus;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.stereotype.Service;
+
+/**
+ * Stores waiting order, entry payloads, and serve-next locks in Redis.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@Service
+public class RedisCacheStorage implements CacheStorage {
+
+  // Expire abandoned serve-next locks rather than leaving a waitlist locked.
+<span class="fc" id="L31">  private static final Duration SERVE_LOCK_TTL = Duration.ofSeconds(30);</span>
+
+  // The caller supplies priority-descending, insertion-ascending ids from WaitingOrder.
+  // Redis score = zero-based list index, so ascending scores preserve that exact order.
+<span class="fc" id="L35">  private static final RedisScript&lt;Long&gt; REPLACE_ORDER = new DefaultRedisScript&lt;&gt;(</span>
+      &quot;&quot;&quot;
+      redis.call('DEL', KEYS[1])
+      for index, entryId in ipairs(ARGV) do
+        redis.call('ZADD', KEYS[1], index - 1, entryId)
+      end
+      redis.call('SET', KEYS[2], #ARGV)
+      return 1
+      &quot;&quot;&quot;, Long.class);
+
+<span class="fc" id="L45">  private static final RedisScript&lt;List&gt; READ_ORDER = new DefaultRedisScript&lt;&gt;(</span>
+      &quot;&quot;&quot;
+      local count = redis.call('GET', KEYS[2])
+      if not count or tonumber(count) ~= redis.call('ZCARD', KEYS[1]) then
+        return {}
+      end
+      local ids = redis.call('ZRANGE', KEYS[1], 0, -1)
+      table.insert(ids, 1, 'cached')
+      return ids
+      &quot;&quot;&quot;, List.class);
+
+<span class="fc" id="L56">  private static final RedisScript&lt;Long&gt; REPLACE_ORDER_IF_NEWER = new DefaultRedisScript&lt;&gt;(</span>
+      &quot;&quot;&quot;
+      local incoming = tonumber(ARGV[1])
+      local current = redis.call('GET', KEYS[3])
+      if current and tonumber(current) &gt; incoming then
+        return 0
+      end
+      redis.call('DEL', KEYS[1])
+      for index = 2, #ARGV do
+        redis.call('ZADD', KEYS[1], index - 2, ARGV[index])
+      end
+      redis.call('SET', KEYS[2], #ARGV - 1)
+      redis.call('SET', KEYS[3], ARGV[1])
+      return 1
+      &quot;&quot;&quot;, Long.class);
+
+<span class="fc" id="L72">  private static final RedisScript&lt;Long&gt; PUT_ENTRY = new DefaultRedisScript&lt;&gt;(</span>
+      &quot;&quot;&quot;
+      local incoming = tonumber(ARGV[9])
+      if incoming &gt;= 0 then
+        local current = redis.call('HGET', KEYS[1], 'updatedAtMillis')
+        if current and tonumber(current) &gt; incoming then
+          return 0
+        end
+      end
+      redis.call('HSET', KEYS[1],
+        'id', ARGV[1], 'waitlistId', ARGV[2], 'name', ARGV[3],
+        'priority', ARGV[4], 'status', ARGV[5], 'insertedAt', ARGV[6],
+        'calledAt', ARGV[7], 'updatedAt', ARGV[8],
+        'updatedAtMillis', ARGV[9])
+      redis.call('SADD', KEYS[2], KEYS[1])
+      return 1
+      &quot;&quot;&quot;, Long.class);
+
+<span class="fc" id="L90">  private static final RedisScript&lt;Long&gt; DELETE_ENTRY = new DefaultRedisScript&lt;&gt;(</span>
+      &quot;&quot;&quot;
+      redis.call('DEL', KEYS[1])
+      redis.call('SREM', KEYS[2], KEYS[1])
+      return 1
+      &quot;&quot;&quot;, Long.class);
+
+<span class="fc" id="L97">  private static final RedisScript&lt;Long&gt; REMOVE_WAITING_MEMBER = new DefaultRedisScript&lt;&gt;(</span>
+      &quot;&quot;&quot;
+      redis.call('ZREM', KEYS[1], ARGV[1])
+      if redis.call('EXISTS', KEYS[2]) == 1 then
+        redis.call('SET', KEYS[2], redis.call('ZCARD', KEYS[1]))
+      end
+      return 1
+      &quot;&quot;&quot;, Long.class);
+
+<span class="fc" id="L106">  private static final RedisScript&lt;Long&gt; INVALIDATE_WAITLIST = new DefaultRedisScript&lt;&gt;(</span>
+      &quot;&quot;&quot;
+      for _, entryKey in ipairs(redis.call('SMEMBERS', KEYS[3])) do
+        redis.call('DEL', entryKey)
+      end
+      redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
+      return 1
+      &quot;&quot;&quot;, Long.class);
+
+<span class="fc" id="L115">  private static final RedisScript&lt;Long&gt; RELEASE_LOCK = new DefaultRedisScript&lt;&gt;(</span>
+      &quot;&quot;&quot;
+      if redis.call('GET', KEYS[1]) == ARGV[1] then
+        return redis.call('DEL', KEYS[1])
+      end
+      return 0
+      &quot;&quot;&quot;, Long.class);
+
+  private final StringRedisTemplate redis;
+  // Each request thread keeps the tokens for the locks it acquired.
+<span class="fc" id="L125">  private final ThreadLocal&lt;Map&lt;String, String&gt;&gt; lockTokens = new ThreadLocal&lt;&gt;();</span>
+
+  /**
+   * Creates the Redis adapter using the configured connection.
+   *
+   * @param redis Redis string operations
+   */
+<span class="fc" id="L132">  public RedisCacheStorage(StringRedisTemplate redis) {</span>
+<span class="fc" id="L133">    this.redis = Objects.requireNonNull(redis, &quot;redis&quot;);</span>
+<span class="fc" id="L134">  }</span>
+
+  @Override
+  public void replaceWaitingOrder(String waitlistId, List&lt;String&gt; entryIdsInOrder) {
+<span class="fc" id="L138">    List&lt;String&gt; ids = List.copyOf(entryIdsInOrder);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">    if (new HashSet&lt;&gt;(ids).size() != ids.size()) {</span>
+<span class="fc" id="L140">      throw new IllegalArgumentException(&quot;Waiting entry ids must be unique&quot;);</span>
+    }
+
+<span class="fc" id="L143">    String keyPrefix = prefix(waitlistId);</span>
+<span class="fc" id="L144">    List&lt;String&gt; keys = List.of(keyPrefix + &quot;waiting&quot;, keyPrefix + &quot;waiting-ready&quot;);</span>
+<span class="fc" id="L145">    redis.execute(REPLACE_ORDER, keys, ids.toArray());</span>
+<span class="fc" id="L146">  }</span>
+
+  @Override
+  public boolean replaceWaitingOrderIfNewer(
+      String waitlistId, List&lt;String&gt; entryIdsInOrder, Instant revision) {
+<span class="fc" id="L151">    Objects.requireNonNull(revision, &quot;revision&quot;);</span>
+<span class="fc" id="L152">    List&lt;String&gt; ids = List.copyOf(entryIdsInOrder);</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">    if (new HashSet&lt;&gt;(ids).size() != ids.size()) {</span>
+<span class="fc" id="L154">      throw new IllegalArgumentException(&quot;Waiting entry ids must be unique&quot;);</span>
+    }
+
+<span class="fc" id="L157">    String keyPrefix = prefix(waitlistId);</span>
+<span class="fc" id="L158">    List&lt;String&gt; keys = List.of(</span>
+        keyPrefix + &quot;waiting&quot;, keyPrefix + &quot;waiting-ready&quot;, keyPrefix + &quot;revision&quot;);
+<span class="fc" id="L160">    List&lt;String&gt; args = new ArrayList&lt;&gt;(ids.size() + 1);</span>
+<span class="fc" id="L161">    args.add(Long.toString(revision.toEpochMilli()));</span>
+<span class="fc" id="L162">    args.addAll(ids);</span>
+<span class="fc" id="L163">    Long written = redis.execute(REPLACE_ORDER_IF_NEWER, keys, args.toArray());</span>
+<span class="pc bpc" id="L164" title="1 of 4 branches missed.">    return written != null &amp;&amp; written == 1L;</span>
+  }
+
+  @Override
+  public Optional&lt;List&lt;String&gt;&gt; findWaitingOrder(String waitlistId) {
+<span class="fc" id="L169">    String keyPrefix = prefix(waitlistId);</span>
+<span class="fc" id="L170">    List&lt;String&gt; keys = List.of(keyPrefix + &quot;waiting&quot;, keyPrefix + &quot;waiting-ready&quot;);</span>
+<span class="fc" id="L171">    List&lt;?&gt; values = redis.execute(READ_ORDER, keys);</span>
+<span class="pc bpc" id="L172" title="1 of 4 branches missed.">    if (values == null || values.isEmpty()) {</span>
+<span class="fc" id="L173">      return Optional.empty();</span>
+    }
+    // The first script result marks a cache hit, including a cached empty queue.
+<span class="fc" id="L176">    List&lt;String&gt; ids = new ArrayList&lt;&gt;(values.size() - 1);</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">    for (Object id : values.subList(1, values.size())) {</span>
+<span class="fc" id="L178">      ids.add((String) id);</span>
+<span class="fc" id="L179">    }</span>
+<span class="fc" id="L180">    return Optional.of(ids);</span>
+  }
+
+  @Override
+  public void putEntry(Entry entry) {
+<span class="fc" id="L185">    String waitlistId = entry.waitlistId();</span>
+<span class="fc" id="L186">    String key = entryKey(waitlistId, entry.id());</span>
+<span class="fc" id="L187">    String indexKey = prefix(waitlistId) + &quot;cached-entries&quot;;</span>
+<span class="fc" id="L188">    List&lt;String&gt; keys = List.of(key, indexKey);</span>
+
+<span class="fc" id="L190">    redis.execute(PUT_ENTRY, keys,</span>
+<span class="fc" id="L191">        entry.id(), waitlistId, entry.name(), Integer.toString(entry.priority()),</span>
+<span class="fc" id="L192">        entry.status().name(), entry.insertedAt().toString(),</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        entry.calledAt() == null ? &quot;&quot; : entry.calledAt().toString(),</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">        entry.updatedAt() == null ? &quot;&quot; : entry.updatedAt().toString(),</span>
+<span class="fc" id="L195">        Long.toString(updatedAtMillis(entry.updatedAt())));</span>
+<span class="fc" id="L196">  }</span>
+
+  @Override
+  public Optional&lt;Entry&gt; findEntry(String waitlistId, String entryId) {
+<span class="fc" id="L200">    String key = entryKey(waitlistId, entryId);</span>
+<span class="fc" id="L201">    Map&lt;Object, Object&gt; fields = redis.opsForHash().entries(key);</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">    if (fields.isEmpty()) {</span>
+<span class="fc" id="L203">      return Optional.empty();</span>
+    }
+<span class="fc" id="L205">    String calledAt = (String) fields.get(&quot;calledAt&quot;);</span>
+<span class="fc" id="L206">    String updatedAt = (String) fields.get(&quot;updatedAt&quot;);</span>
+<span class="fc" id="L207">    return Optional.of(new Entry(</span>
+<span class="fc" id="L208">        (String) fields.get(&quot;id&quot;),</span>
+<span class="fc" id="L209">        (String) fields.get(&quot;waitlistId&quot;),</span>
+<span class="fc" id="L210">        (String) fields.get(&quot;name&quot;),</span>
+<span class="fc" id="L211">        Integer.parseInt((String) fields.get(&quot;priority&quot;)),</span>
+<span class="fc" id="L212">        EntryStatus.valueOf((String) fields.get(&quot;status&quot;)),</span>
+<span class="fc" id="L213">        Instant.parse((String) fields.get(&quot;insertedAt&quot;)),</span>
+<span class="fc bfc" id="L214" title="All 4 branches covered.">        calledAt == null || calledAt.isEmpty() ? null : Instant.parse(calledAt),</span>
+<span class="fc bfc" id="L215" title="All 4 branches covered.">        updatedAt == null || updatedAt.isEmpty() ? null : Instant.parse(updatedAt)));</span>
+  }
+
+  @Override
+  public void invalidateWaitlist(String waitlistId) {
+<span class="fc" id="L220">    String keyPrefix = prefix(waitlistId);</span>
+<span class="fc" id="L221">    List&lt;String&gt; keys = List.of(</span>
+        keyPrefix + &quot;waiting&quot;, keyPrefix + &quot;waiting-ready&quot;,
+        keyPrefix + &quot;cached-entries&quot;, keyPrefix + &quot;revision&quot;);
+<span class="fc" id="L224">    redis.execute(INVALIDATE_WAITLIST, keys);</span>
+<span class="fc" id="L225">  }</span>
+
+  @Override
+  public void deleteEntry(String waitlistId, String entryId) {
+<span class="fc" id="L229">    String key = entryKey(waitlistId, entryId);</span>
+<span class="fc" id="L230">    String indexKey = prefix(waitlistId) + &quot;cached-entries&quot;;</span>
+<span class="fc" id="L231">    List&lt;String&gt; keys = List.of(key, indexKey);</span>
+<span class="fc" id="L232">    redis.execute(DELETE_ENTRY, keys);</span>
+<span class="fc" id="L233">  }</span>
+
+  @Override
+  public void removeWaitingMember(String waitlistId, String entryId) {
+<span class="fc" id="L237">    String keyPrefix = prefix(waitlistId);</span>
+<span class="fc" id="L238">    List&lt;String&gt; keys = List.of(keyPrefix + &quot;waiting&quot;, keyPrefix + &quot;waiting-ready&quot;);</span>
+<span class="fc" id="L239">    redis.execute(REMOVE_WAITING_MEMBER, keys, entryId);</span>
+<span class="fc" id="L240">  }</span>
+
+  /**
+   * Acquires a non-reentrant lock for this thread, if it is not already held.
+   *
+   * @param waitlistId waitlist to lock
+   * @return true when this thread acquired the lock
+   */
+  @Override
+  public boolean tryAcquireServeLock(String waitlistId) {
+<span class="fc" id="L250">    String key = prefix(waitlistId) + &quot;serve-lock&quot;;</span>
+<span class="fc" id="L251">    String token = UUID.randomUUID().toString();</span>
+<span class="fc" id="L252">    Boolean acquired = redis.opsForValue().setIfAbsent(key, token, SERVE_LOCK_TTL);</span>
+<span class="fc bfc" id="L253" title="All 2 branches covered.">    if (!Boolean.TRUE.equals(acquired)) {</span>
+<span class="fc" id="L254">      return false;</span>
+    }
+
+<span class="fc" id="L257">    Map&lt;String, String&gt; tokens = lockTokens.get();</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">    if (tokens == null) {</span>
+<span class="fc" id="L259">      tokens = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L260">      lockTokens.set(tokens);</span>
+    }
+<span class="fc" id="L262">    tokens.put(waitlistId, token);</span>
+<span class="fc" id="L263">    return true;</span>
+  }
+
+  /**
+   * Releases only the lock acquired by this thread and adapter instance.
+   *
+   * &lt;p&gt;Call from the same thread as acquisition, normally in a finally block.
+   * An expired owner cannot delete a newer owner's lock.
+   *
+   * @param waitlistId waitlist to unlock
+   */
+  @Override
+  public void releaseServeLock(String waitlistId) {
+<span class="fc" id="L276">    Map&lt;String, String&gt; tokens = lockTokens.get();</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">    if (tokens == null) {</span>
+<span class="fc" id="L278">      return;</span>
+    }
+
+<span class="fc" id="L281">    String token = tokens.remove(waitlistId);</span>
+<span class="fc bfc" id="L282" title="All 2 branches covered.">    if (tokens.isEmpty()) {</span>
+<span class="fc" id="L283">      lockTokens.remove();</span>
+    }
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">    if (token == null) {</span>
+<span class="nc" id="L286">      return;</span>
+    }
+
+<span class="fc" id="L289">    String key = prefix(waitlistId) + &quot;serve-lock&quot;;</span>
+<span class="fc" id="L290">    redis.execute(RELEASE_LOCK, List.of(key), token);</span>
+<span class="fc" id="L291">  }</span>
+
+  private static long updatedAtMillis(Instant updatedAt) {
+<span class="fc bfc" id="L294" title="All 2 branches covered.">    return updatedAt == null ? -1L : updatedAt.toEpochMilli();</span>
+  }
+
+  private static String prefix(String waitlistId) {
+<span class="fc" id="L298">    return &quot;cvnstack:waitlist:&quot; + encode(waitlistId) + &quot;:&quot;;</span>
+  }
+
+  private static String entryKey(String waitlistId, String entryId) {
+<span class="fc" id="L302">    return prefix(waitlistId) + &quot;entry:&quot; + encode(entryId);</span>
+  }
+
+  private static String encode(String id) {
+<span class="fc" id="L306">    return Base64.getUrlEncoder().withoutPadding()</span>
+<span class="fc" id="L307">        .encodeToString(id.getBytes(StandardCharsets.UTF_8));</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

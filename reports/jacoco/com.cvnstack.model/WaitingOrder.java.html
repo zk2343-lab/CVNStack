@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WaitingOrder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.model</a> &gt; <span class="el_source">WaitingOrder.java</span></div><h1>WaitingOrder.java</h1><pre class="source lang-java linenums">package com.cvnstack.model;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.OptionalInt;
+
+/**
+ * Orders waiting entries by higher priority, then earlier insertion time.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+public final class WaitingOrder {
+
+  private WaitingOrder() {}
+
+  /**
+   * Comparator for {@link EntryStatus#WAITING} ranking.
+   *
+   * @return comparator that puts higher priority first, then earlier insertion
+   */
+  public static Comparator&lt;Entry&gt; comparator() {
+<span class="fc" id="L23">    return Comparator.comparingInt(Entry::priority)</span>
+<span class="fc" id="L24">        .reversed()</span>
+<span class="fc" id="L25">        .thenComparing(Entry::insertedAt);</span>
+  }
+
+  /**
+   * Returns waiting entries sorted for serve-next and position calculation.
+   *
+   * @param entries entries that may include non-waiting statuses
+   * @return only {@code WAITING} entries in rank order
+   */
+  public static List&lt;Entry&gt; rankedWaiting(final List&lt;Entry&gt; entries) {
+<span class="fc" id="L35">    Objects.requireNonNull(entries, &quot;entries&quot;);</span>
+<span class="fc" id="L36">    return entries.stream()</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        .filter(entry -&gt; entry.status() == EntryStatus.WAITING)</span>
+<span class="fc" id="L38">        .sorted(comparator())</span>
+<span class="fc" id="L39">        .toList();</span>
+  }
+
+  /**
+   * One-based position among waiting entries, or empty when not waiting.
+   *
+   * @param target entry whose position is requested
+   * @param entries all entries on the same waitlist
+   * @return position starting at 1, or empty
+   */
+  public static OptionalInt positionOf(final Entry target, final List&lt;Entry&gt; entries) {
+<span class="fc" id="L50">    Objects.requireNonNull(target, &quot;target&quot;);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    if (target.status() != EntryStatus.WAITING) {</span>
+<span class="fc" id="L52">      return OptionalInt.empty();</span>
+    }
+<span class="fc" id="L54">    final List&lt;Entry&gt; ranked = rankedWaiting(entries);</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">    for (int index = 0; index &lt; ranked.size(); index++) {</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">      if (ranked.get(index).id().equals(target.id())) {</span>
+<span class="fc" id="L57">        return OptionalInt.of(index + 1);</span>
+      }
+    }
+<span class="nc" id="L60">    return OptionalInt.empty();</span>
+  }
+
+  /**
+   * Count of waiting entries ahead of {@code target}, or empty when not waiting.
+   *
+   * @param target entry whose ahead-count is requested
+   * @param entries all entries on the same waitlist
+   * @return entries ahead, or empty
+   */
+  public static OptionalInt entriesAhead(final Entry target, final List&lt;Entry&gt; entries) {
+<span class="fc" id="L71">    final OptionalInt position = positionOf(target, entries);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">    if (position.isEmpty()) {</span>
+<span class="fc" id="L73">      return OptionalInt.empty();</span>
+    }
+<span class="fc" id="L75">    return OptionalInt.of(position.getAsInt() - 1);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

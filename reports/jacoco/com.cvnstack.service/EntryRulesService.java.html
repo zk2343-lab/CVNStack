@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntryRulesService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.service</a> &gt; <span class="el_source">EntryRulesService.java</span></div><h1>EntryRulesService.java</h1><pre class="source lang-java linenums">package com.cvnstack.service;
+
+import com.cvnstack.error.ApiException;
+import com.cvnstack.model.Entry;
+import com.cvnstack.model.EntryStatus;
+import com.cvnstack.model.EntryTransitions;
+import com.cvnstack.model.WaitEstimate;
+import com.cvnstack.model.WaitingOrder;
+import java.util.List;
+import java.util.OptionalInt;
+import org.springframework.stereotype.Service;
+
+/**
+ * Application service for entry ranking, estimates, and status rules.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@Service
+<span class="fc" id="L19">public class EntryRulesService {</span>
+
+  /**
+   * Returns waiting entries in serve order.
+   *
+   * @param entries entries on a waitlist
+   * @return ranked waiting entries
+   */
+  public List&lt;Entry&gt; rankedWaiting(final List&lt;Entry&gt; entries) {
+<span class="fc" id="L28">    return WaitingOrder.rankedWaiting(entries);</span>
+  }
+
+  /**
+   * One-based position among waiting entries, or empty when not waiting.
+   *
+   * @param target entry to locate
+   * @param entries entries on the same waitlist
+   * @return position or empty
+   */
+  public OptionalInt positionOf(final Entry target, final List&lt;Entry&gt; entries) {
+<span class="fc" id="L39">    return WaitingOrder.positionOf(target, entries);</span>
+  }
+
+  /**
+   * Wait estimate in minutes for a waiting entry.
+   *
+   * @param target entry to estimate
+   * @param entries entries on the same waitlist
+   * @param processingTimePerEntryMinutes waitlist processing time
+   * @return minutes or empty when not waiting
+   */
+  public OptionalInt estimateMinutes(
+      final Entry target,
+      final List&lt;Entry&gt; entries,
+      final int processingTimePerEntryMinutes) {
+<span class="fc" id="L54">    return WaitEstimate.minutes(</span>
+<span class="fc" id="L55">        WaitingOrder.entriesAhead(target, entries), processingTimePerEntryMinutes);</span>
+  }
+
+  /**
+   * Ensures a status change is allowed; otherwise raises {@code
+   * INVALID_STATE_TRANSITION}.
+   *
+   * @param from current status
+   * @param to requested status
+   */
+  public void requireTransition(final EntryStatus from, final EntryStatus to) {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">    if (!EntryTransitions.isAllowed(from, to)) {</span>
+<span class="fc" id="L67">      throw ApiException.invalidStateTransition(</span>
+          &quot;Cannot transition state from &quot; + from + &quot; to &quot; + to);
+    }
+<span class="fc" id="L70">  }</span>
+
+  /**
+   * Ensures priority may change in {@code status}; otherwise raises {@code
+   * INVALID_REQUEST}.
+   *
+   * @param status current status
+   */
+  public void requirePriorityChangeAllowed(final EntryStatus status) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (!EntryTransitions.canChangePriority(status)) {</span>
+<span class="fc" id="L80">      throw ApiException.invalidRequest(</span>
+          &quot;Priority can only change while WAITING or CALLED&quot;);
+    }
+<span class="fc" id="L83">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

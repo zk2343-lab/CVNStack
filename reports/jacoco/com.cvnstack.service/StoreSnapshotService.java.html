@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StoreSnapshotService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.service</a> &gt; <span class="el_source">StoreSnapshotService.java</span></div><h1>StoreSnapshotService.java</h1><pre class="source lang-java linenums">package com.cvnstack.service;
+
+import com.cvnstack.model.response.StoreSnapshotResponse;
+import com.cvnstack.model.response.StoreSnapshotResponse.EntrySnapshot;
+import com.cvnstack.model.response.StoreSnapshotResponse.RedisSnapshot;
+import com.cvnstack.model.response.StoreSnapshotResponse.WaitlistSnapshot;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.connection.DataType;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+/**
+ * Reads the live PostgreSQL tables and Redis keys for the visualizer.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@Service
+public class StoreSnapshotService {
+
+  private final JdbcTemplate jdbc;
+  private final StringRedisTemplate redis;
+
+  /**
+   * Creates the snapshot reader. Either store may be absent in mocked tests.
+   *
+   * @param jdbc PostgreSQL access, if a datasource is configured
+   * @param redis Redis access, if a Redis connection is configured
+   */
+  public StoreSnapshotService(
+<span class="fc" id="L37">      ObjectProvider&lt;JdbcTemplate&gt; jdbc, ObjectProvider&lt;StringRedisTemplate&gt; redis) {</span>
+<span class="fc" id="L38">    this.jdbc = jdbc.getIfAvailable();</span>
+<span class="fc" id="L39">    this.redis = redis.getIfAvailable();</span>
+<span class="fc" id="L40">  }</span>
+
+  /**
+   * Returns every waitlist row, entry row, and CVNStack Redis key.
+   *
+   * @return store snapshot
+   */
+  public StoreSnapshotResponse snapshot() {
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">    if (jdbc == null) {</span>
+<span class="nc" id="L49">      return new StoreSnapshotResponse(List.of(), List.of(), List.of());</span>
+    }
+<span class="fc" id="L51">    return new StoreSnapshotResponse(waitlists(), entries(), redisKeys());</span>
+  }
+
+  /**
+   * Clears the Redis database used by the running application.
+   */
+  public void flushRedis() {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">    if (redis == null) {</span>
+<span class="nc" id="L59">      return;</span>
+    }
+<span class="fc" id="L61">    try (RedisConnection connection =</span>
+<span class="fc" id="L62">        Objects.requireNonNull(redis.getConnectionFactory()).getConnection()) {</span>
+<span class="fc" id="L63">      connection.serverCommands().flushDb();</span>
+    }
+<span class="fc" id="L65">  }</span>
+
+  /**
+   * Deletes every waitlist and entry row, then empties Redis.
+   */
+  public void wipeStores() {
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">    if (jdbc != null) {</span>
+<span class="fc" id="L72">      jdbc.execute(&quot;TRUNCATE TABLE entries, waitlists&quot;);</span>
+    }
+<span class="fc" id="L74">    flushRedis();</span>
+<span class="fc" id="L75">  }</span>
+
+  private List&lt;WaitlistSnapshot&gt; waitlists() {
+<span class="fc" id="L78">    return jdbc.query(&quot;&quot;&quot;</span>
+        SELECT id, name, max_length, processing_time_per_entry_minutes
+        FROM waitlists ORDER BY name
+<span class="fc" id="L81">        &quot;&quot;&quot;, (row, index) -&gt; new WaitlistSnapshot(</span>
+<span class="fc" id="L82">        row.getObject(&quot;id&quot;, UUID.class).toString(), row.getString(&quot;name&quot;),</span>
+<span class="fc" id="L83">        row.getInt(&quot;max_length&quot;), row.getInt(&quot;processing_time_per_entry_minutes&quot;)));</span>
+  }
+
+  private List&lt;EntrySnapshot&gt; entries() {
+<span class="fc" id="L87">    return jdbc.query(&quot;&quot;&quot;</span>
+        SELECT id, waitlist_id, name, priority, status, inserted_at, called_at, updated_at
+        FROM entries ORDER BY inserted_at
+<span class="nc" id="L90">        &quot;&quot;&quot;, (row, index) -&gt; new EntrySnapshot(</span>
+<span class="nc" id="L91">        row.getObject(&quot;id&quot;, UUID.class).toString(),</span>
+<span class="nc" id="L92">        row.getObject(&quot;waitlist_id&quot;, UUID.class).toString(), row.getString(&quot;name&quot;),</span>
+<span class="nc" id="L93">        row.getInt(&quot;priority&quot;), row.getString(&quot;status&quot;),</span>
+<span class="nc" id="L94">        String.valueOf(row.getTimestamp(&quot;inserted_at&quot;).toInstant()),</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        row.getTimestamp(&quot;called_at&quot;) == null</span>
+<span class="nc" id="L96">            ? null : String.valueOf(row.getTimestamp(&quot;called_at&quot;).toInstant()),</span>
+<span class="nc" id="L97">        String.valueOf(row.getTimestamp(&quot;updated_at&quot;).toInstant())));</span>
+  }
+
+  private List&lt;RedisSnapshot&gt; redisKeys() {
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">    if (redis == null) {</span>
+<span class="nc" id="L102">      return List.of();</span>
+    }
+<span class="fc" id="L104">    Set&lt;String&gt; keys = redis.keys(&quot;cvnstack:*&quot;);</span>
+<span class="pc bpc" id="L105" title="2 of 4 branches missed.">    if (keys == null || keys.isEmpty()) {</span>
+<span class="fc" id="L106">      return List.of();</span>
+    }
+<span class="nc" id="L108">    List&lt;RedisSnapshot&gt; views = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">    for (String key : keys.stream().sorted().toList()) {</span>
+<span class="nc" id="L110">      DataType type = redis.type(key);</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">      String typeName = type == null ? &quot;none&quot; : type.code();</span>
+<span class="nc" id="L112">      views.add(new RedisSnapshot(key, typeName, printableValue(key, type)));</span>
+<span class="nc" id="L113">    }</span>
+<span class="nc" id="L114">    return views;</span>
+  }
+
+  private String printableValue(String key, DataType type) {
+<span class="nc bnc" id="L118" title="All 2 branches missed.">    if (type == DataType.ZSET) {</span>
+<span class="nc" id="L119">      return String.valueOf(redis.opsForZSet().range(key, 0, -1));</span>
+    }
+<span class="nc bnc" id="L121" title="All 2 branches missed.">    if (type == DataType.HASH) {</span>
+<span class="nc" id="L122">      return String.valueOf(redis.opsForHash().entries(key));</span>
+    }
+<span class="nc bnc" id="L124" title="All 2 branches missed.">    if (type == DataType.SET) {</span>
+<span class="nc" id="L125">      return String.valueOf(redis.opsForSet().members(key));</span>
+    }
+<span class="nc bnc" id="L127" title="All 2 branches missed.">    if (type == DataType.STRING) {</span>
+<span class="nc" id="L128">      return String.valueOf(redis.opsForValue().get(key));</span>
+    }
+<span class="nc" id="L130">    return &quot;&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PatchEntryService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.service</a> &gt; <span class="el_source">PatchEntryService.java</span></div><h1>PatchEntryService.java</h1><pre class="source lang-java linenums">package com.cvnstack.service;
+
+import com.cvnstack.error.ApiException;
+import com.cvnstack.model.Entry;
+import com.cvnstack.model.EntryStatus;
+import com.cvnstack.model.Waitlist;
+import com.cvnstack.model.request.PatchEntryRequest;
+import com.cvnstack.model.response.PatchEntryResponse;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+/**
+ * Applies validated partial entry updates using PostgreSQL optimistic concurrency checks.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@Service
+public class PatchEntryService {
+
+  private final WaitlistStorage storage;
+  private final CacheConsistencyService consistency;
+  private final EntryRulesService rules;
+
+  /**
+   * Creates the service using persisted entries, cache coordination, and shared rules.
+   *
+   * @param storage PostgreSQL storage port
+   * @param consistency PostgreSQL-then-Redis coordinator
+   * @param rules entry validation and ranking rules
+   */
+  public PatchEntryService(
+<span class="fc" id="L35">      @Lazy WaitlistStorage storage, CacheConsistencyService consistency, EntryRulesService rules) {</span>
+<span class="fc" id="L36">    this.storage = storage;</span>
+<span class="fc" id="L37">    this.consistency = consistency;</span>
+<span class="fc" id="L38">    this.rules = rules;</span>
+<span class="fc" id="L39">  }</span>
+
+  /**
+   * Updates supplied fields, re-reading and re-validating after a competing write.
+   *
+   * @param waitlistId owning waitlist id
+   * @param entryId entry id
+   * @param request requested fields
+   * @return persisted entry with derived waiting information
+   */
+  public PatchEntryResponse patchEntry(
+      String waitlistId, String entryId, PatchEntryRequest request) {
+<span class="fc bfc" id="L51" title="All 6 branches covered.">    if (request == null || (request.status() == null &amp;&amp; request.priority() == null)) {</span>
+<span class="fc" id="L52">      throw ApiException.badRequest(&quot;At least one of status or priority must be provided&quot;);</span>
+    }
+<span class="fc bfc" id="L54" title="All 2 branches covered.">    if (request.priority() != null</span>
+<span class="fc bfc" id="L55" title="All 4 branches covered.">        &amp;&amp; (request.priority() &lt; Entry.MIN_PRIORITY || request.priority() &gt; Entry.MAX_PRIORITY)) {</span>
+<span class="fc" id="L56">      throw ApiException.badRequest(&quot;Priority must be between 1 and 5&quot;);</span>
+    }
+<span class="fc" id="L58">    Waitlist waitlist = storage.findWaitlistById(waitlistId)</span>
+<span class="fc" id="L59">        .orElseThrow(() -&gt; ApiException.notFound(&quot;Waitlist does not exist&quot;));</span>
+<span class="fc" id="L60">    Entry current = findEntry(waitlistId, entryId);</span>
+    while (true) {
+<span class="fc bfc" id="L62" title="All 4 branches covered.">      boolean statusChanged = request.status() != null &amp;&amp; request.status() != current.status();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">      boolean priorityChanged = request.priority() != null</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">          &amp;&amp; request.priority() != current.priority();</span>
+<span class="fc bfc" id="L65" title="All 4 branches covered.">      if (!statusChanged &amp;&amp; !priorityChanged) {</span>
+<span class="fc" id="L66">        return response(current, waitlist, false);</span>
+      }
+<span class="fc bfc" id="L68" title="All 2 branches covered.">      if (statusChanged) {</span>
+<span class="fc" id="L69">        rules.requireTransition(current.status(), request.status());</span>
+      }
+<span class="fc bfc" id="L71" title="All 2 branches covered.">      if (priorityChanged) {</span>
+<span class="fc" id="L72">        rules.requirePriorityChangeAllowed(current.status());</span>
+      }
+<span class="fc bfc" id="L74" title="All 4 branches covered.">      Instant calledAt = statusChanged &amp;&amp; request.status() == EntryStatus.CALLED</span>
+<span class="fc" id="L75">          ? Instant.now() : current.calledAt();</span>
+<span class="fc" id="L76">      Entry desired = new Entry(current.id(), current.waitlistId(), current.name(),</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">          priorityChanged ? request.priority() : current.priority(),</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">          statusChanged ? request.status() : current.status(), current.insertedAt(),</span>
+<span class="fc" id="L79">          calledAt, current.updatedAt());</span>
+<span class="fc" id="L80">      Optional&lt;Entry&gt; updated = storage.updateEntryIfUnchanged(desired, current);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">      if (updated.isPresent()) {</span>
+<span class="fc" id="L82">        return response(updated.get(), waitlist, true);</span>
+      }
+      // A failed compare-and-set must never reuse validation against the stale row.
+<span class="fc" id="L85">      current = findEntry(waitlistId, entryId);</span>
+<span class="fc" id="L86">    }</span>
+  }
+
+  private Entry findEntry(String waitlistId, String entryId) {
+<span class="fc" id="L90">    return storage.findEntry(waitlistId, entryId)</span>
+<span class="fc" id="L91">        .orElseThrow(() -&gt; ApiException.notFound(&quot;Entry does not exist&quot;));</span>
+  }
+
+  private PatchEntryResponse response(Entry entry, Waitlist waitlist, boolean rowChanged) {
+<span class="fc" id="L95">    List&lt;Entry&gt; entries = storage.findEntriesByWaitlistId(waitlist.id());</span>
+<span class="fc" id="L96">    List&lt;String&gt; waitingIds = rules.rankedWaiting(entries).stream().map(Entry::id).toList();</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">    if (rowChanged) {</span>
+<span class="fc" id="L98">      consistency.replaceCacheAfterCommit(waitlist.id(), entry, waitingIds);</span>
+    }
+<span class="fc" id="L100">    Integer position = null;</span>
+<span class="fc" id="L101">    Integer estimate = null;</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">    if (entry.status() == EntryStatus.WAITING) {</span>
+<span class="fc" id="L103">      position = rules.positionOf(entry, entries)</span>
+<span class="pc" id="L104">          .orElseThrow(() -&gt; ApiException.notFound(&quot;Entry is no longer waiting&quot;));</span>
+<span class="fc" id="L105">      estimate = rules.estimateMinutes(entry, entries, waitlist.processingTimePerEntryMinutes())</span>
+<span class="pc" id="L106">          .orElseThrow(() -&gt; ApiException.notFound(&quot;Entry is no longer waiting&quot;));</span>
+    }
+<span class="fc" id="L108">    return new PatchEntryResponse(entry.waitlistId(), entry.id(), entry.status(), entry.priority(),</span>
+<span class="fc" id="L109">        entry.updatedAt(), position, estimate);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

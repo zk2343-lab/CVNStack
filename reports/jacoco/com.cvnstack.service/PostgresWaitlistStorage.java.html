@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PostgresWaitlistStorage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CVNStack</a> &gt; <a href="index.source.html" class="el_package">com.cvnstack.service</a> &gt; <span class="el_source">PostgresWaitlistStorage.java</span></div><h1>PostgresWaitlistStorage.java</h1><pre class="source lang-java linenums">package com.cvnstack.service;
+
+import com.cvnstack.error.ApiException;
+import com.cvnstack.model.Entry;
+import com.cvnstack.model.EntryStatus;
+import com.cvnstack.model.Waitlist;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import org.postgresql.util.PSQLException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * Persists waitlists and entries with PostgreSQL constraints and atomic state changes.
+ *
+ * &lt;p&gt;AI-assisted.
+ */
+@Repository
+public class PostgresWaitlistStorage implements WaitlistStorage {
+
+<span class="fc" id="L32">  private static final RowMapper&lt;Waitlist&gt; WAITLIST_MAPPER = (row, index) -&gt; new Waitlist(</span>
+<span class="fc" id="L33">      row.getObject(&quot;id&quot;, UUID.class).toString(), row.getString(&quot;name&quot;),</span>
+<span class="fc" id="L34">      row.getInt(&quot;max_length&quot;), row.getInt(&quot;processing_time_per_entry_minutes&quot;));</span>
+<span class="fc" id="L35">  private static final RowMapper&lt;Entry&gt; ENTRY_MAPPER = (row, index) -&gt; new Entry(</span>
+<span class="fc" id="L36">      row.getObject(&quot;id&quot;, UUID.class).toString(),</span>
+<span class="fc" id="L37">      row.getObject(&quot;waitlist_id&quot;, UUID.class).toString(), row.getString(&quot;name&quot;),</span>
+<span class="fc" id="L38">      row.getInt(&quot;priority&quot;), EntryStatus.valueOf(row.getString(&quot;status&quot;)),</span>
+<span class="fc" id="L39">      row.getTimestamp(&quot;inserted_at&quot;).toInstant(), nullableInstant(row, &quot;called_at&quot;),</span>
+<span class="fc" id="L40">      row.getTimestamp(&quot;updated_at&quot;).toInstant());</span>
+
+  private final JdbcTemplate jdbc;
+  private final TransactionTemplate capacityTransaction;
+
+  /**
+   * Creates the PostgreSQL adapter using Spring's datasource and transaction manager.
+   *
+   * @param jdbc JDBC operations for the configured datasource
+   * @param transactionManager transaction manager for the same datasource
+   */
+  public PostgresWaitlistStorage(
+<span class="fc" id="L52">      JdbcTemplate jdbc, PlatformTransactionManager transactionManager) {</span>
+<span class="fc" id="L53">    this.jdbc = jdbc;</span>
+<span class="fc" id="L54">    capacityTransaction = new TransactionTemplate(transactionManager);</span>
+    // Each count must see committed inserts after a competing row-lock holder commits.
+<span class="fc" id="L56">    capacityTransaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);</span>
+<span class="fc" id="L57">    capacityTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);</span>
+<span class="fc" id="L58">  }</span>
+
+  @Override
+  public Waitlist saveWaitlist(Waitlist waitlist) {
+    try {
+<span class="fc" id="L63">      return jdbc.queryForObject(&quot;&quot;&quot;</span>
+          INSERT INTO waitlists (id, name, max_length, processing_time_per_entry_minutes)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
+              max_length = EXCLUDED.max_length,
+              processing_time_per_entry_minutes = EXCLUDED.processing_time_per_entry_minutes
+          RETURNING *
+<span class="fc" id="L70">          &quot;&quot;&quot;, WAITLIST_MAPPER, parseUuid(waitlist.id(), &quot;waitlist id&quot;), waitlist.name(),</span>
+<span class="fc" id="L71">          waitlist.maxLength(), waitlist.processingTimePerEntryMinutes());</span>
+<span class="fc" id="L72">    } catch (DataIntegrityViolationException exception) {</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">      if (isConstraintViolation(exception, &quot;23505&quot;, &quot;uq_waitlists_name&quot;)) {</span>
+<span class="fc" id="L74">        throw ApiException.conflict(&quot;Waitlist name already exists&quot;);</span>
+      }
+<span class="nc" id="L76">      throw exception;</span>
+    }
+  }
+
+  @Override
+  public Optional&lt;Waitlist&gt; findWaitlistById(String id) {
+<span class="fc" id="L82">    return jdbc.query(&quot;SELECT * FROM waitlists WHERE id = ?&quot;, WAITLIST_MAPPER,</span>
+<span class="fc" id="L83">        parseUuid(id, &quot;waitlist id&quot;)).stream().findFirst();</span>
+  }
+
+  @Override
+  public Optional&lt;Waitlist&gt; findWaitlistByName(String name) {
+<span class="fc" id="L88">    return jdbc.query(&quot;SELECT * FROM waitlists WHERE name = ?&quot;, WAITLIST_MAPPER,</span>
+<span class="fc" id="L89">        name).stream().findFirst();</span>
+  }
+
+  @Override
+  public Entry saveEntry(Entry entry) {
+    try {
+<span class="fc" id="L95">      return jdbc.queryForObject(&quot;&quot;&quot;</span>
+          INSERT INTO entries (id, waitlist_id, name, priority, status, inserted_at, called_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          RETURNING *
+<span class="fc" id="L99">          &quot;&quot;&quot;, ENTRY_MAPPER, parseUuid(entry.id(), &quot;entry id&quot;),</span>
+<span class="fc" id="L100">          parseUuid(entry.waitlistId(), &quot;waitlist id&quot;),</span>
+<span class="fc" id="L101">          entry.name(), entry.priority(), entry.status().name(), Timestamp.from(entry.insertedAt()),</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">          entry.calledAt() == null ? null : Timestamp.from(entry.calledAt()));</span>
+<span class="fc" id="L103">    } catch (DataIntegrityViolationException exception) {</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      if (isConstraintViolation(exception, &quot;23503&quot;, &quot;fk_entries_waitlist&quot;)) {</span>
+<span class="fc" id="L105">        throw ApiException.notFound(&quot;Waitlist does not exist&quot;);</span>
+      }
+<span class="fc" id="L107">      throw exception;</span>
+    }
+  }
+
+  @Override
+  public Optional&lt;Entry&gt; updateEntryIfUnchanged(Entry updatedEntry, Entry expectedCurrent) {
+<span class="fc" id="L113">    return jdbc.query(&quot;&quot;&quot;</span>
+        UPDATE entries SET status = ?, priority = ?, called_at = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE waitlist_id = ? AND id = ? AND status = ? AND priority = ?
+        RETURNING *
+<span class="fc" id="L118">        &quot;&quot;&quot;, ENTRY_MAPPER, updatedEntry.status().name(), updatedEntry.priority(),</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        updatedEntry.calledAt() == null ? null : Timestamp.from(updatedEntry.calledAt()),</span>
+<span class="fc" id="L120">        parseUuid(expectedCurrent.waitlistId(), &quot;waitlist id&quot;),</span>
+<span class="fc" id="L121">        parseUuid(expectedCurrent.id(), &quot;entry id&quot;), expectedCurrent.status().name(),</span>
+<span class="fc" id="L122">        expectedCurrent.priority()).stream().findFirst();</span>
+  }
+
+  @Override
+  public Entry insertEntryIfCapacityAvailable(Entry entry) {
+<span class="fc" id="L127">    return Objects.requireNonNull(capacityTransaction.execute(transaction -&gt; {</span>
+<span class="fc" id="L128">      UUID waitlistId = parseUuid(entry.waitlistId(), &quot;waitlist id&quot;);</span>
+<span class="fc" id="L129">      Waitlist waitlist = jdbc.query(&quot;SELECT * FROM waitlists WHERE id = ? FOR UPDATE&quot;,</span>
+<span class="fc" id="L130">          WAITLIST_MAPPER, waitlistId).stream().findFirst()</span>
+<span class="fc" id="L131">          .orElseThrow(() -&gt; ApiException.notFound(&quot;Waitlist does not exist&quot;));</span>
+<span class="fc" id="L132">      Long active = jdbc.queryForObject(&quot;&quot;&quot;</span>
+          SELECT COUNT(*) FROM entries
+          WHERE waitlist_id = ? AND status IN ('WAITING', 'CALLED')
+          &quot;&quot;&quot;, Long.class, waitlistId);
+<span class="fc bfc" id="L136" title="All 2 branches covered.">      if (Objects.requireNonNull(active) &gt;= waitlist.maxLength()) {</span>
+<span class="fc" id="L137">        throw ApiException.capacityExceeded(&quot;Waitlist is full&quot;);</span>
+      }
+<span class="fc" id="L139">      return saveEntry(entry);</span>
+    }));
+  }
+
+  @Override
+  public Optional&lt;Entry&gt; callEntryIfWaiting(
+      String waitlistId, String entryId, Instant calledAt) {
+<span class="fc" id="L146">    return jdbc.query(&quot;&quot;&quot;</span>
+        UPDATE entries SET status = 'CALLED', called_at = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE waitlist_id = ? AND id = ? AND status = 'WAITING'
+        RETURNING *
+<span class="fc" id="L150">        &quot;&quot;&quot;, ENTRY_MAPPER, Timestamp.from(calledAt), parseUuid(waitlistId, &quot;waitlist id&quot;),</span>
+<span class="fc" id="L151">        parseUuid(entryId, &quot;entry id&quot;)).stream().findFirst();</span>
+  }
+
+  @Override
+  public Optional&lt;Entry&gt; findEntry(String waitlistId, String entryId) {
+<span class="fc" id="L156">    return jdbc.query(&quot;SELECT * FROM entries WHERE waitlist_id = ? AND id = ?&quot;,</span>
+<span class="fc" id="L157">        ENTRY_MAPPER, parseUuid(waitlistId, &quot;waitlist id&quot;), parseUuid(entryId, &quot;entry id&quot;))</span>
+<span class="fc" id="L158">        .stream().findFirst();</span>
+  }
+
+  @Override
+  public List&lt;Entry&gt; findEntriesByWaitlistId(String waitlistId) {
+<span class="fc" id="L163">    return jdbc.query(&quot;SELECT * FROM entries WHERE waitlist_id = ?&quot;, ENTRY_MAPPER,</span>
+<span class="fc" id="L164">        parseUuid(waitlistId, &quot;waitlist id&quot;));</span>
+  }
+
+  @Override
+  public boolean deleteEntry(String waitlistId, String entryId) {
+<span class="fc bfc" id="L169" title="All 2 branches covered.">    return jdbc.update(&quot;DELETE FROM entries WHERE waitlist_id = ? AND id = ?&quot;,</span>
+<span class="fc" id="L170">        parseUuid(waitlistId, &quot;waitlist id&quot;), parseUuid(entryId, &quot;entry id&quot;)) == 1;</span>
+  }
+
+  @Override
+  public long countWaitingEntries(String waitlistId) {
+<span class="fc" id="L175">    return Objects.requireNonNull(jdbc.queryForObject(</span>
+        &quot;SELECT COUNT(*) FROM entries WHERE waitlist_id = ? AND status = 'WAITING'&quot;,
+<span class="fc" id="L177">        Long.class, parseUuid(waitlistId, &quot;waitlist id&quot;)));</span>
+  }
+
+  private static Instant nullableInstant(ResultSet row, String column) throws SQLException {
+<span class="fc" id="L181">    Timestamp value = row.getTimestamp(column);</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">    return value == null ? null : value.toInstant();</span>
+  }
+
+  private static UUID parseUuid(final String value, final String fieldName) {
+    try {
+<span class="fc" id="L187">      return UUID.fromString(value);</span>
+<span class="fc" id="L188">    } catch (IllegalArgumentException exception) {</span>
+<span class="fc" id="L189">      throw ApiException.badRequest(&quot;Invalid &quot; + fieldName);</span>
+    }
+  }
+
+  private static boolean isConstraintViolation(
+      Throwable exception, String sqlState, String constraint) {
+<span class="fc bfc" id="L195" title="All 2 branches covered.">    for (Throwable cause = exception; cause != null; cause = cause.getCause()) {</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">      if (cause instanceof PSQLException postgres</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">          &amp;&amp; sqlState.equals(postgres.getSQLState())</span>
+<span class="pc bpc" id="L198" title="1 of 2 branches missed.">          &amp;&amp; postgres.getServerErrorMessage() != null</span>
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">          &amp;&amp; constraint.equals(postgres.getServerErrorMessage().getConstraint())) {</span>
+<span class="fc" id="L200">        return true;</span>
+      }
+    }
+<span class="fc" id="L203">    return false;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
