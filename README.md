@@ -38,8 +38,8 @@ cd CVNStack
 | Compile and package | `mvn -DskipTests package` | Maven |
 | Unit and API tests | `mvn test` | JUnit 5, Mockito, REST Assured |
 | Style check | `mvn checkstyle:check` | Checkstyle, `config/checkstyle/checkstyle.xml` (Google Java Style) |
-| Tests + style + coverage | `mvn verify` | JaCoCo branch coverage must be at least 55%; HTML report under `target/site/jacoco/` |
-| Clean Checkstyle report | committed under `reports/checkstyle/` | regenerated with `mvn checkstyle:check` |
+| Tests + style + coverage | `mvn verify` | JaCoCo; 55% branch gate. Committed HTML: [`reports/jacoco/index.html`](reports/jacoco/index.html) (**82% branch**, 92% line). `mvn verify` also writes `target/site/jacoco/`. |
+| Clean Checkstyle report | committed under `reports/checkstyle/` | `mvn checkstyle:checkstyle antrun:run@print-checkstyle-report` writes HTML and prints a `file://` link |
 
 ```bash
 mvn test
@@ -126,7 +126,7 @@ rebuild, and overlapping serve-next.
 | JUnit 5 | Unit tests | root `pom.xml` dependency |
 | Mockito | Mocks in unit tests | root `pom.xml` dependency |
 | REST Assured | HTTP API tests | root `pom.xml` dependency |
-| JaCoCo | Coverage on `mvn verify` | root `pom.xml` plugin |
+| JaCoCo | Branch coverage (**82%** on this tree; 55% gate) | `pom.xml` plugin; committed report [`reports/jacoco/index.html`](reports/jacoco/index.html) |
 | Flyway | Schema migrations | `src/main/resources/db/migration/` |
 | Testcontainers | Isolated PostgreSQL and Redis in tests | root `pom.xml`, `StoreConsistencyTest` |
 
