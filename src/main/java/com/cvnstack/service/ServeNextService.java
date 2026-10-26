@@ -19,19 +19,25 @@ public class ServeNextService {
 
   private final WaitlistStorage storage;
   private final CacheStorage cache;
+  private final CacheConsistencyService consistency;
   private final EntryRulesService rules;
 
   /**
    * Creates the service with the shared storage ports and ranking rules.
    *
    * @param storage waitlist and entry storage
-   * @param cache waiting order and entry cache
+   * @param cache waiting order, entry cache, and serve-next lock
+   * @param consistency write-through update after the committed claim
    * @param rules shared ranking rules
    */
   public ServeNextService(
-      @Lazy WaitlistStorage storage, CacheStorage cache, EntryRulesService rules) {
+      @Lazy WaitlistStorage storage,
+      CacheStorage cache,
+      CacheConsistencyService consistency,
+      EntryRulesService rules) {
     this.storage = storage;
     this.cache = cache;
+    this.consistency = consistency;
     this.rules = rules;
   }
 
@@ -45,19 +51,25 @@ public class ServeNextService {
     storage.findWaitlistById(waitlistId)
         .orElseThrow(() -> ApiException.notFound("Waitlist does not exist"));
 
-    List<Entry> waiting = rules.rankedWaiting(storage.findEntriesByWaitlistId(waitlistId));
-    for (Entry candidate : waiting) {
-      // A competing request may already have claimed this candidate.
-      Optional<Entry> claimed = storage.callEntryIfWaiting(
-          waitlistId, candidate.id(), Instant.now());
-      if (claimed.isPresent()) {
-        Entry called = claimed.get();
-        // Invalidate after the committed change; positions are rebuilt from storage.
-        cache.invalidateWaitlist(waitlistId);
-        return Optional.of(new ServeNextResponse(
-            called.waitlistId(), called.id(), called.status(), called.priority()));
+    boolean locked = cache.tryAcquireServeLock(waitlistId);
+    try {
+      List<Entry> waiting = rules.rankedWaiting(storage.findEntriesByWaitlistId(waitlistId));
+      for (Entry candidate : waiting) {
+        // The lock serializes callers; the conditional update still prevents a double claim.
+        Optional<Entry> claimed = storage.callEntryIfWaiting(
+            waitlistId, candidate.id(), Instant.now());
+        if (claimed.isPresent()) {
+          Entry called = claimed.get();
+          consistency.writeThroughCalledEntry(waitlistId, called);
+          return Optional.of(new ServeNextResponse(
+              called.waitlistId(), called.id(), called.status(), called.priority()));
+        }
+      }
+      return Optional.empty();
+    } finally {
+      if (locked) {
+        cache.releaseServeLock(waitlistId);
       }
     }
-    return Optional.empty();
   }
 }

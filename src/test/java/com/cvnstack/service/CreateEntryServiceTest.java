@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,8 +42,9 @@ class CreateEntryServiceTest {
 
   private final WaitlistStorage storage = mock(WaitlistStorage.class);
   private final CacheStorage cache = mock(CacheStorage.class);
-  private final CreateEntryService service =
-      new CreateEntryService(storage, cache, new EntryRulesService());
+  private final CreateEntryService service = new CreateEntryService(
+      storage, new CacheConsistencyService(storage, cache, new EntryRulesService()),
+      new EntryRulesService());
   private final List<Entry> entries = new ArrayList<>();
 
   @BeforeEach
@@ -82,7 +85,8 @@ class CreateEntryServiceTest {
     verify(storage).findEntriesByWaitlistId("wl-1");
     verifyNoMoreInteractions(storage);
     verify(cache).putEntry(entries.getFirst());
-    verify(cache).replaceWaitingOrder("wl-1", List.of(response.entryId()));
+    verify(cache).replaceWaitingOrderIfNewer(
+        eq("wl-1"), eq(List.of(response.entryId())), any());
     verifyNoMoreInteractions(cache);
   }
 
@@ -147,13 +151,23 @@ class CreateEntryServiceTest {
   }
 
   @Test
+  void redisFailureAfterInsertInvalidatesAndStillReturnsTheCommittedEntry() {
+    allowInsert();
+    doThrow(new IllegalStateException("Redis unavailable")).when(cache).putEntry(any());
+    EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 1));
+    assertEquals(1, response.position());
+    verify(cache).invalidateWaitlist("wl-1");
+  }
+
+  @Test
   void higherPriorityJumpsAheadOfOlderEntry() {
     allowInsert();
     entries.add(new Entry("older", "wl-1", "Bob", 1, EntryStatus.WAITING, Instant.EPOCH));
     EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 5));
     assertEquals(1, response.position());
     assertEquals(0, response.estimatedWaitTimeMinutes());
-    verify(cache).replaceWaitingOrder("wl-1", List.of(response.entryId(), "older"));
+    verify(cache).replaceWaitingOrderIfNewer(
+        eq("wl-1"), eq(List.of(response.entryId(), "older")), any());
   }
 
   @Test
@@ -165,6 +179,7 @@ class CreateEntryServiceTest {
     EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 3));
     assertEquals(3, response.position());
     assertEquals(10, response.estimatedWaitTimeMinutes());
-    verify(cache).replaceWaitingOrder("wl-1", List.of("urgent", "older", response.entryId()));
+    verify(cache).replaceWaitingOrderIfNewer(
+        eq("wl-1"), eq(List.of("urgent", "older", response.entryId())), any());
   }
 }

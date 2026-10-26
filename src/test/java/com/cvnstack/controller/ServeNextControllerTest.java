@@ -66,7 +66,9 @@ class ServeNextControllerTest {
         .body("status", equalTo("CALLED"))
         .body("priority", equalTo(5));
 
-    verify(cache).invalidateWaitlist("wl-1");
+    verify(cache).tryAcquireServeLock("wl-1");
+    verify(cache).putEntry(any(Entry.class));
+    verify(cache).removeWaitingMember("wl-1", "e1");
   }
 
   @Test
@@ -79,7 +81,7 @@ class ServeNextControllerTest {
         .body(equalTo(""));
 
     verify(storage, never()).callEntryIfWaiting(anyString(), anyString(), any());
-    verifyNoInteractions(cache);
+    verify(cache).tryAcquireServeLock("wl-1");
   }
 
   @Test
@@ -115,12 +117,14 @@ class ServeNextControllerTest {
     given().port(port).when().post("/waitlists/wl-1/serve-next")
         .then().statusCode(204).body(equalTo(""));
 
-    verify(cache, times(2)).invalidateWaitlist("wl-1");
+    verify(cache, times(2)).putEntry(any(Entry.class));
+    verify(cache, times(2)).removeWaitingMember(eq("wl-1"), anyString());
   }
 
   private void givenEntries(List<Entry> entries) {
     when(storage.findWaitlistById("wl-1")).thenReturn(Optional.of(WAITLIST));
     when(storage.findEntriesByWaitlistId("wl-1")).thenReturn(entries);
+    when(cache.tryAcquireServeLock("wl-1")).thenReturn(true);
   }
 
   private void givenClaimSucceeds(Entry entry) {

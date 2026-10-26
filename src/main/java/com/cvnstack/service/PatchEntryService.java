@@ -21,16 +21,20 @@ import org.springframework.stereotype.Service;
 public class PatchEntryService {
 
   private final WaitlistStorage storage;
+  private final CacheConsistencyService consistency;
   private final EntryRulesService rules;
 
   /**
-   * Creates the service using persisted entries and shared rules.
+   * Creates the service using persisted entries, cache coordination, and shared rules.
    *
    * @param storage PostgreSQL storage port
+   * @param consistency PostgreSQL-then-Redis coordinator
    * @param rules entry validation and ranking rules
    */
-  public PatchEntryService(@Lazy WaitlistStorage storage, EntryRulesService rules) {
+  public PatchEntryService(
+      @Lazy WaitlistStorage storage, CacheConsistencyService consistency, EntryRulesService rules) {
     this.storage = storage;
+    this.consistency = consistency;
     this.rules = rules;
   }
 
@@ -59,7 +63,7 @@ public class PatchEntryService {
       boolean priorityChanged = request.priority() != null
           && request.priority() != current.priority();
       if (!statusChanged && !priorityChanged) {
-        return response(current, waitlist);
+        return response(current, waitlist, false);
       }
       if (statusChanged) {
         rules.requireTransition(current.status(), request.status());
@@ -75,7 +79,7 @@ public class PatchEntryService {
           calledAt, current.updatedAt());
       Optional<Entry> updated = storage.updateEntryIfUnchanged(desired, current);
       if (updated.isPresent()) {
-        return response(updated.get(), waitlist);
+        return response(updated.get(), waitlist, true);
       }
       // A failed compare-and-set must never reuse validation against the stale row.
       current = findEntry(waitlistId, entryId);
@@ -87,11 +91,15 @@ public class PatchEntryService {
         .orElseThrow(() -> ApiException.notFound("Entry does not exist"));
   }
 
-  private PatchEntryResponse response(Entry entry, Waitlist waitlist) {
+  private PatchEntryResponse response(Entry entry, Waitlist waitlist, boolean rowChanged) {
+    List<Entry> entries = storage.findEntriesByWaitlistId(waitlist.id());
+    List<String> waitingIds = rules.rankedWaiting(entries).stream().map(Entry::id).toList();
+    if (rowChanged) {
+      consistency.replaceCacheAfterCommit(waitlist.id(), entry, waitingIds);
+    }
     Integer position = null;
     Integer estimate = null;
     if (entry.status() == EntryStatus.WAITING) {
-      List<Entry> entries = storage.findEntriesByWaitlistId(waitlist.id());
       position = rules.positionOf(entry, entries)
           .orElseThrow(() -> ApiException.notFound("Entry is no longer waiting"));
       estimate = rules.estimateMinutes(entry, entries, waitlist.processingTimePerEntryMinutes())

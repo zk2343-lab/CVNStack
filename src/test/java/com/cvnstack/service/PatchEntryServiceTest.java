@@ -36,7 +36,10 @@ import org.springframework.http.HttpStatus;
 class PatchEntryServiceTest {
 
   private final WaitlistStorage storage = mock(WaitlistStorage.class);
-  private final PatchEntryService service = new PatchEntryService(storage, new EntryRulesService());
+  private final CacheStorage cache = mock(CacheStorage.class);
+  private final PatchEntryService service = new PatchEntryService(
+      storage, new CacheConsistencyService(storage, cache, new EntryRulesService()),
+      new EntryRulesService());
   private final Instant inserted = Instant.parse("2020-01-01T00:00:00Z");
   private final Instant updated = inserted.plusSeconds(10);
   private Entry current;
@@ -77,6 +80,8 @@ class PatchEntryServiceTest {
     assertFalse(desired.getValue().calledAt().isAfter(Instant.now()));
     assertEquals(updated, desired.getValue().updatedAt());
     verify(storage, never()).saveEntry(any());
+    verify(cache).putEntry(any(Entry.class));
+    verify(cache).replaceWaitingOrderIfNewer(eq("wl"), any(), eq(updated.plusSeconds(20)));
   }
 
   @Test

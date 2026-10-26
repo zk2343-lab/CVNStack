@@ -22,7 +22,7 @@ Services reference model classes and `ErrorCode` through `ApiException`.
 
 ## Stores
 
-PostgreSQL is the source of truth. Schema changes go through Flyway. Redis holds the waiting-order sorted set, the serve-next lock, and a read cache of entry payloads. A mutation commits to PostgreSQL first, then updates Redis. If the Redis update fails, delete that waitlist's rank key and the entry cache key so the next read rebuilds from the database.
+PostgreSQL is the source of truth. Schema changes go through Flyway. Redis holds the waiting-order sorted set, the serve-next lock, and a read cache of entry payloads. Mutations are write-through: a mutation commits to PostgreSQL first, then writes the new Redis state. If the Redis update fails, delete that waitlist's rank key and the entry cache key so the next read rebuilds from the database.
 
 Local stores come from `docker-compose.yml` (issue 21). The app reads host, port, and credentials from configuration. Do not hardcode them.
 

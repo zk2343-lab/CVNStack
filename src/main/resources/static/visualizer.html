@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<!--
+  AI-assisted.
+  Independent REST actions with live PostgreSQL/Redis tables.
+  The header describes the selected preset; presets only preload actions.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CVNStack request data-flow visualizer</title>
+  <link rel="stylesheet" href="visualizer.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <h1>CVNStack request flow</h1>
+        <p class="lede" id="presetScenario"></p>
+      </div>
+      <button class="hack-key" id="wipeStores" type="button">
+        <kbd>DEV</kbd>
+        <span>
+          <strong>Wipe stores</strong>
+          <small>Clear Redis + PostgreSQL</small>
+        </span>
+      </button>
+    </header>
+    <div class="toolbar">
+      <div class="presets" id="presets"></div>
+    </div>
+    <main>
+      <section class="panel actions-panel">
+        <div class="panel-head">
+          <h2 id="actionTitle">Independent HTTP actions</h2>
+          <div class="panel-controls">
+            <button class="panel-min" type="button" aria-expanded="true"
+                aria-label="Minimize actions"></button>
+            <button class="panel-max" type="button" aria-pressed="false"
+                aria-label="Expand actions"></button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="actions" id="actions"></div>
+        </div>
+      </section>
+      <section class="panel rest-panel">
+        <div class="panel-head">
+          <h2>REST invocation</h2>
+          <div class="panel-controls">
+            <button class="panel-min" type="button" aria-expanded="true"
+                aria-label="Minimize REST invocation"></button>
+            <button class="panel-max" type="button" aria-pressed="false"
+                aria-label="Expand REST invocation"></button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="http-label">Request</div>
+          <pre id="requestView">Click Send request on any action.</pre>
+          <div class="http-label">Curl</div>
+          <pre id="curlView"></pre>
+          <div class="http-label">Response</div>
+          <pre id="responseView"></pre>
+        </div>
+      </section>
+      <div class="stores">
+        <section class="panel pg">
+          <div class="panel-head">
+            <h2>PostgreSQL <span class="count" id="pgCount">0</span></h2>
+            <div class="panel-controls">
+              <button class="panel-min" type="button" aria-expanded="true"
+                  aria-label="Minimize PostgreSQL"></button>
+              <button class="panel-max" type="button" aria-pressed="false"
+                  aria-label="Expand PostgreSQL"></button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <p class="store-hint">
+              Hover a row to light related Redis keys. A waitlist also lights
+              its entries. Click a row to keep the highlight; click elsewhere
+              to release it.
+            </p>
+            <div class="store-kicker">waitlists</div>
+            <div id="waitlistTable" class="empty">Loading…</div>
+            <div class="store-kicker">entries</div>
+            <div id="entryTable" class="empty">Loading…</div>
+          </div>
+        </section>
+        <section class="panel redis">
+          <div class="panel-head">
+            <h2>Redis <span class="count" id="redisCount">0</span></h2>
+            <div class="panel-controls">
+              <button class="panel-min" type="button" aria-expanded="true"
+                  aria-label="Minimize Redis"></button>
+              <button class="panel-max" type="button" aria-pressed="false"
+                  aria-label="Expand Redis"></button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <p class="store-hint">
+              zset is waiting order, hash is an entry payload, set lists those
+              hashes. Hover a key to light the matching PostgreSQL rows.
+              Click a row to keep the highlight; click elsewhere to release it.
+            </p>
+            <div id="redisTable" class="empty">Loading…</div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="visualizer.js"></script>
+</body>
+</html>

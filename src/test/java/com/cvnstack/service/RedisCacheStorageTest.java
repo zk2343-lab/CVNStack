@@ -104,6 +104,17 @@ class RedisCacheStorageTest {
   }
 
   @Test
+  void removeWaitingMemberLeavesOtherRanks() {
+    cache.replaceWaitingOrder("wl-1", List.of("urgent", "normal"));
+
+    cache.removeWaitingMember("wl-1", "urgent");
+
+    assertEquals(Optional.of(List.of("normal")), cache.findWaitingOrder("wl-1"));
+    cache.removeWaitingMember("wl-1", "normal");
+    assertEquals(Optional.of(List.of()), cache.findWaitingOrder("wl-1"));
+  }
+
+  @Test
   void distinguishesCachedEmptyOrderFromMissingOrder() {
     cache.replaceWaitingOrder("wl-1", List.of());
 
@@ -228,6 +239,48 @@ class RedisCacheStorageTest {
     cache.putEntry(updated);
 
     assertEquals(Optional.of(updated), cache.findEntry("wl-1", "e1"));
+  }
+
+  @Test
+  void olderEntryWriteDoesNotReplaceNewerPayload() {
+    Entry newer = new Entry("e1", "wl-1", "Desktop", 4, EntryStatus.WAITING,
+        T0, null, T0.plusSeconds(2));
+    Entry older = new Entry("e1", "wl-1", "Desktop", 2, EntryStatus.WAITING,
+        T0, null, T0.plusSeconds(1));
+
+    cache.putEntry(newer);
+    cache.putEntry(older);
+
+    assertEquals(Optional.of(newer), cache.findEntry("wl-1", "e1"));
+  }
+
+  @Test
+  void olderWaitingOrderRevisionDoesNotReplaceNewerRank() {
+    assertTrue(cache.replaceWaitingOrderIfNewer(
+        "wl-1", List.of("urgent", "normal"), T0.plusSeconds(2)));
+
+    assertFalse(cache.replaceWaitingOrderIfNewer(
+        "wl-1", List.of("normal", "urgent"), T0.plusSeconds(1)));
+    assertEquals(Optional.of(List.of("urgent", "normal")), cache.findWaitingOrder("wl-1"));
+  }
+
+  @Test
+  void newerWaitingOrderRevisionReplacesRank() {
+    cache.replaceWaitingOrderIfNewer("wl-1", List.of("normal"), T0.plusSeconds(1));
+
+    assertTrue(cache.replaceWaitingOrderIfNewer(
+        "wl-1", List.of("urgent", "normal"), T0.plusSeconds(2)));
+    assertEquals(Optional.of(List.of("urgent", "normal")), cache.findWaitingOrder("wl-1"));
+  }
+
+  @Test
+  void invalidateClearsRevisionSoALaterRebuildCanWrite() {
+    cache.replaceWaitingOrderIfNewer("wl-1", List.of("urgent"), T0.plusSeconds(2));
+
+    cache.invalidateWaitlist("wl-1");
+
+    assertTrue(cache.replaceWaitingOrderIfNewer("wl-1", List.of("normal"), T0.plusSeconds(1)));
+    assertEquals(Optional.of(List.of("normal")), cache.findWaitingOrder("wl-1"));
   }
 
   @Test

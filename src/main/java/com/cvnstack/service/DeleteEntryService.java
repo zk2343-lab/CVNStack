@@ -14,14 +14,17 @@ import org.springframework.stereotype.Service;
 public class DeleteEntryService {
 
   private final WaitlistStorage storage;
+  private final CacheConsistencyService consistency;
 
   /**
    * Creates the entry removal service.
    *
    * @param storage persistent waitlist and entry storage
+   * @param consistency PostgreSQL-then-Redis coordinator
    */
-  public DeleteEntryService(@Lazy WaitlistStorage storage) {
+  public DeleteEntryService(@Lazy WaitlistStorage storage, CacheConsistencyService consistency) {
     this.storage = storage;
+    this.consistency = consistency;
   }
 
   /**
@@ -37,6 +40,7 @@ public class DeleteEntryService {
     if (!storage.deleteEntry(waitlistId, entryId)) {
       throw ApiException.notFound("Entry does not exist");
     }
+    consistency.dropEntryAfterCommit(waitlistId, entryId);
     return new DeleteEntryResponse("Entry successfully removed", entryId, waitlistId);
   }
 }

@@ -21,20 +21,20 @@ import org.springframework.stereotype.Service;
 public class CreateEntryService {
 
   private final WaitlistStorage storage;
-  private final CacheStorage cache;
+  private final CacheConsistencyService consistency;
   private final EntryRulesService rules;
 
   /**
    * Creates the service using shared storage ports and ranking rules.
    *
    * @param storage persistent waitlist and entry storage
-   * @param cache entry payload and waiting order cache
+   * @param consistency PostgreSQL-then-Redis coordinator
    * @param rules shared entry rules
    */
   public CreateEntryService(
-      @Lazy WaitlistStorage storage, CacheStorage cache, EntryRulesService rules) {
+      @Lazy WaitlistStorage storage, CacheConsistencyService consistency, EntryRulesService rules) {
     this.storage = storage;
-    this.cache = cache;
+    this.consistency = consistency;
     this.rules = rules;
   }
 
@@ -63,8 +63,8 @@ public class CreateEntryService {
     int position = rules.positionOf(savedEntry, ranked).orElseThrow();
     int estimate = rules.estimateMinutes(
         savedEntry, ranked, waitlist.processingTimePerEntryMinutes()).orElseThrow();
-    cache.putEntry(savedEntry);
-    cache.replaceWaitingOrder(waitlistId, ranked.stream().map(Entry::id).toList());
+    consistency.replaceCacheAfterCommit(
+        waitlistId, savedEntry, ranked.stream().map(Entry::id).toList());
     return new EntryResponse(savedEntry.waitlistId(), savedEntry.id(), savedEntry.status(),
         savedEntry.priority(), position, estimate);
   }

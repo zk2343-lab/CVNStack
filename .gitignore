@@ -1,6 +1,7 @@
 # AI-assisted.
 # Build output
 target/
+reports/jacoco/
 
 # Local secrets
 .env

@@ -53,12 +53,36 @@ public class RedisCacheStorage implements CacheStorage {
       return ids
       """, List.class);
 
+  private static final RedisScript<Long> REPLACE_ORDER_IF_NEWER = new DefaultRedisScript<>(
+      """
+      local incoming = tonumber(ARGV[1])
+      local current = redis.call('GET', KEYS[3])
+      if current and tonumber(current) > incoming then
+        return 0
+      end
+      redis.call('DEL', KEYS[1])
+      for index = 2, #ARGV do
+        redis.call('ZADD', KEYS[1], index - 2, ARGV[index])
+      end
+      redis.call('SET', KEYS[2], #ARGV - 1)
+      redis.call('SET', KEYS[3], ARGV[1])
+      return 1
+      """, Long.class);
+
   private static final RedisScript<Long> PUT_ENTRY = new DefaultRedisScript<>(
       """
+      local incoming = tonumber(ARGV[9])
+      if incoming >= 0 then
+        local current = redis.call('HGET', KEYS[1], 'updatedAtMillis')
+        if current and tonumber(current) > incoming then
+          return 0
+        end
+      end
       redis.call('HSET', KEYS[1],
         'id', ARGV[1], 'waitlistId', ARGV[2], 'name', ARGV[3],
         'priority', ARGV[4], 'status', ARGV[5], 'insertedAt', ARGV[6],
-        'calledAt', ARGV[7], 'updatedAt', ARGV[8])
+        'calledAt', ARGV[7], 'updatedAt', ARGV[8],
+        'updatedAtMillis', ARGV[9])
       redis.call('SADD', KEYS[2], KEYS[1])
       return 1
       """, Long.class);
@@ -70,12 +94,21 @@ public class RedisCacheStorage implements CacheStorage {
       return 1
       """, Long.class);
 
+  private static final RedisScript<Long> REMOVE_WAITING_MEMBER = new DefaultRedisScript<>(
+      """
+      redis.call('ZREM', KEYS[1], ARGV[1])
+      if redis.call('EXISTS', KEYS[2]) == 1 then
+        redis.call('SET', KEYS[2], redis.call('ZCARD', KEYS[1]))
+      end
+      return 1
+      """, Long.class);
+
   private static final RedisScript<Long> INVALIDATE_WAITLIST = new DefaultRedisScript<>(
       """
       for _, entryKey in ipairs(redis.call('SMEMBERS', KEYS[3])) do
         redis.call('DEL', entryKey)
       end
-      redis.call('DEL', KEYS[1], KEYS[2], KEYS[3])
+      redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
       return 1
       """, Long.class);
 
@@ -113,6 +146,25 @@ public class RedisCacheStorage implements CacheStorage {
   }
 
   @Override
+  public boolean replaceWaitingOrderIfNewer(
+      String waitlistId, List<String> entryIdsInOrder, Instant revision) {
+    Objects.requireNonNull(revision, "revision");
+    List<String> ids = List.copyOf(entryIdsInOrder);
+    if (new HashSet<>(ids).size() != ids.size()) {
+      throw new IllegalArgumentException("Waiting entry ids must be unique");
+    }
+
+    String keyPrefix = prefix(waitlistId);
+    List<String> keys = List.of(
+        keyPrefix + "waiting", keyPrefix + "waiting-ready", keyPrefix + "revision");
+    List<String> args = new ArrayList<>(ids.size() + 1);
+    args.add(Long.toString(revision.toEpochMilli()));
+    args.addAll(ids);
+    Long written = redis.execute(REPLACE_ORDER_IF_NEWER, keys, args.toArray());
+    return written != null && written == 1L;
+  }
+
+  @Override
   public Optional<List<String>> findWaitingOrder(String waitlistId) {
     String keyPrefix = prefix(waitlistId);
     List<String> keys = List.of(keyPrefix + "waiting", keyPrefix + "waiting-ready");
@@ -139,7 +191,8 @@ public class RedisCacheStorage implements CacheStorage {
         entry.id(), waitlistId, entry.name(), Integer.toString(entry.priority()),
         entry.status().name(), entry.insertedAt().toString(),
         entry.calledAt() == null ? "" : entry.calledAt().toString(),
-        entry.updatedAt() == null ? "" : entry.updatedAt().toString());
+        entry.updatedAt() == null ? "" : entry.updatedAt().toString(),
+        Long.toString(updatedAtMillis(entry.updatedAt())));
   }
 
   @Override
@@ -166,7 +219,8 @@ public class RedisCacheStorage implements CacheStorage {
   public void invalidateWaitlist(String waitlistId) {
     String keyPrefix = prefix(waitlistId);
     List<String> keys = List.of(
-        keyPrefix + "waiting", keyPrefix + "waiting-ready", keyPrefix + "cached-entries");
+        keyPrefix + "waiting", keyPrefix + "waiting-ready",
+        keyPrefix + "cached-entries", keyPrefix + "revision");
     redis.execute(INVALIDATE_WAITLIST, keys);
   }
 
@@ -176,6 +230,13 @@ public class RedisCacheStorage implements CacheStorage {
     String indexKey = prefix(waitlistId) + "cached-entries";
     List<String> keys = List.of(key, indexKey);
     redis.execute(DELETE_ENTRY, keys);
+  }
+
+  @Override
+  public void removeWaitingMember(String waitlistId, String entryId) {
+    String keyPrefix = prefix(waitlistId);
+    List<String> keys = List.of(keyPrefix + "waiting", keyPrefix + "waiting-ready");
+    redis.execute(REMOVE_WAITING_MEMBER, keys, entryId);
   }
 
   /**
@@ -227,6 +288,10 @@ public class RedisCacheStorage implements CacheStorage {
 
     String key = prefix(waitlistId) + "serve-lock";
     redis.execute(RELEASE_LOCK, List.of(key), token);
+  }
+
+  private static long updatedAtMillis(Instant updatedAt) {
+    return updatedAt == null ? -1L : updatedAt.toEpochMilli();
   }
 
   private static String prefix(String waitlistId) {

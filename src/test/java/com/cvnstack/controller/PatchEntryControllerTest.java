@@ -61,9 +61,8 @@ class PatchEntryControllerTest {
   }
 
   @AfterEach
-  void noInsertOrCacheCoordination() {
+  void noUnconditionalInsert() {
     verify(storage, never()).saveEntry(any());
-    verifyNoInteractions(cache);
   }
 
   @ParameterizedTest

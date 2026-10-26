@@ -94,6 +94,45 @@ class ReadPathApiTest {
         UUID.randomUUID().toString(), "Support", 10, 5));
   }
 
+  @Test
+  void getWaitlistReturnsEntriesInRankOrder() {
+    Entry normal = addEntry("Alice", 1, T0);
+    Entry urgent = addEntry("Bob", 5, T0.plusSeconds(1));
+    Entry called = addEntry("Carol", 3, T0.plusSeconds(2));
+    storage.callEntryIfWaiting(waitlist.id(), called.id(), Instant.now());
+
+    given().port(port)
+        .when().get("/waitlists/{id}", waitlist.id())
+        .then().statusCode(200)
+        .body("id", equalTo(waitlist.id()))
+        .body("name", equalTo("Support"))
+        .body("entries.size()", equalTo(3))
+        .body("entries[0].entryId", equalTo(urgent.id()))
+        .body("entries[0].position", equalTo(1))
+        .body("entries[1].entryId", equalTo(normal.id()))
+        .body("entries[1].position", equalTo(2))
+        .body("entries[2].entryId", equalTo(called.id()))
+        .body("entries[2].status", equalTo("CALLED"))
+        .body("entries[2].position", nullValue());
+  }
+
+  @Test
+  void getWaitlistMissingReturns404() {
+    given().port(port)
+        .when().get("/waitlists/{id}", UUID.randomUUID().toString())
+        .then().statusCode(404)
+        .body("error", equalTo("NOT_FOUND"))
+        .body("message", equalTo("Waitlist does not exist"));
+  }
+
+  @Test
+  void getWaitlistInvalidIdReturns400() {
+    given().port(port)
+        .when().get("/waitlists/{id}", "invalid-id")
+        .then().statusCode(400)
+        .body("error", equalTo("INVALID_REQUEST"));
+  }
+
   // getEntry test
   @Test
   void getWaitingEntries() {
@@ -192,7 +231,7 @@ class ReadPathApiTest {
 
   // serveNext test
   @Test
-  void serveNextUpdatesDatabaseAndInvalidatesCache() {
+  void serveNextUpdatesDatabaseAndWritesCacheThrough() {
     Entry normal = addEntry("Desktop", 1, T0);
     Entry urgent = addEntry("ROBOT", 5, T0.plusSeconds(1));
     cache.putEntry(normal);
@@ -216,9 +255,10 @@ class ReadPathApiTest {
     assertNotNull(called.updatedAt());
     assertEquals(urgent.insertedAt(), called.insertedAt());
     assertFalse(called.updatedAt().isBefore(urgent.updatedAt()));
-    assertTrue(cache.findWaitingOrder(waitlist.id()).isEmpty());
-    assertTrue(cache.findEntry(waitlist.id(), urgent.id()).isEmpty());
-    assertTrue(cache.findEntry(waitlist.id(), normal.id()).isEmpty());
+    assertEquals(Optional.of(List.of(normal.id())), cache.findWaitingOrder(waitlist.id()));
+    assertEquals(EntryStatus.CALLED,
+        cache.findEntry(waitlist.id(), urgent.id()).orElseThrow().status());
+    assertEquals(Optional.of(normal), cache.findEntry(waitlist.id(), normal.id()));
 
     given().port(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), normal.id())
