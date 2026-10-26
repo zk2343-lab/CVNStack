@@ -439,3 +439,9 @@ Token totals come from the product's usage screen. If the screen has not been re
 - **Files.** `reports/checkstyle/README.md`, `reports/checkstyle/cvnstack-checkstyle-result.xml`, `README.md`, this file.
 - **Verification.** `mvn checkstyle:checkstyle checkstyle:check` (JDK 21): zero violations on 77 Java files. JaCoCo committed HTML remains 82% branch / 92% line.
 - **Tokens.** not yet read from the product usage screen.
+- **HTML report follow-up.** 2026-10-25: replaced the handwritten file list with the Maven-generated HTML at `reports/checkstyle/checkstyle.html` (Checkstyle 10.26.1, 0 errors). Restored the original README Checkstyle instruction. JaCoCo still points at `reports/jacoco/index.html` (82% branch).
+- **HTML follow-up prompt.**
+
+  > no, for check styel report, i am looking for a generated report like the jacococ. revert to READ me on checkstyle insgtruction please
+
+- **HTML follow-up files.** `reports/checkstyle/`, `.gitattributes`, `README.md`, this file.

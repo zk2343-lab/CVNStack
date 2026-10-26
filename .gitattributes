@@ -1,1 +1,4 @@
+# AI-assisted.
 reports/jacoco/** linguist-generated=true
+reports/checkstyle/** linguist-generated=true
+reports/checkstyle/README.md linguist-generated=false
