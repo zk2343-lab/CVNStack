@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -31,6 +32,7 @@ public class PatchEntryController {
   /**
    * Updates supplied entry fields.
    *
+   * @param clientInstance calling client instance
    * @param waitlistId owning waitlist id
    * @param entryId entry id
    * @param request optional status and priority
@@ -38,9 +40,11 @@ public class PatchEntryController {
    */
   @PatchMapping("/waitlists/{waitlistId}/entries/{entryId}")
   public ResponseEntity<PatchEntryResponse> patchEntry(
+      @RequestHeader(value = ClientInstanceHeader.NAME, required = false) String clientInstance,
       @PathVariable("waitlistId") String waitlistId,
       @PathVariable("entryId") String entryId,
       @RequestBody PatchEntryRequest request) {
+    ClientInstanceHeader.require(clientInstance);
     return ResponseEntity.ok(service.patchEntry(waitlistId, entryId, request));
   }
 }

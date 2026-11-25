@@ -147,7 +147,25 @@ class PostgresWaitlistStorageTest {
     assertEquals(Optional.of(changed), storage.findWaitlistById(waitlist.id()));
     assertTrue(storage.findWaitlistByName(waitlist.name()).isEmpty());
     assertEquals(0, flyway.migrate().migrationsExecuted);
-    assertEquals(1, flyway.info().applied().length);
+    assertEquals(2, flyway.info().applied().length);
+  }
+
+  @Test
+  void twoClientInstancesStayDistinctOnOneWaitlist() {
+    Waitlist waitlist = storage.saveWaitlist(
+        new Waitlist(UUID.randomUUID().toString(), "Dock", 5, 5, "machine-a"));
+    Entry first = storage.saveEntry(new Entry(
+        UUID.randomUUID().toString(), waitlist.id(), "Truck A", 1, EntryStatus.WAITING, INSERTED,
+        null, null, "machine-a"));
+    Entry second = storage.saveEntry(new Entry(
+        UUID.randomUUID().toString(), waitlist.id(), "Truck B", 1, EntryStatus.WAITING, INSERTED,
+        null, null, "machine-b"));
+    assertEquals("machine-a",
+        storage.findWaitlistById(waitlist.id()).orElseThrow().clientInstance());
+    assertEquals("machine-a",
+        storage.findEntry(waitlist.id(), first.id()).orElseThrow().clientInstance());
+    assertEquals("machine-b",
+        storage.findEntry(waitlist.id(), second.id()).orElseThrow().clientInstance());
   }
 
   @Test

@@ -451,3 +451,28 @@ Token totals come from the product's usage screen. If the screen has not been re
   > mvn checkstyle:checkstyle should at end pirn out a link that i can open the genrated report on browser
 
 - **Browser-link files.** `pom.xml`, `README.md`, `reports/checkstyle/README.md`, this file.
+
+### Issue 40 — Client instance identity via X-Client-Instance
+
+- **Completed.** 2026-11-24
+- **Purpose.** Require `X-Client-Instance` on mutating waitlist routes, persist it on waitlist and entry rows in PostgreSQL, and return `clientInstance` on reads.
+- **Prompt.**
+
+  > can you work on https://github.com/zk2343-lab/CVNStack/issues/40?
+  >
+  > wonder if there should be some inhouse built-in solution, provided by java springboot
+  > framework (or whatever the proejct built on), or GCP that supporst client registry and
+  > recogniztion of clientId and associated X-Client-Instance.
+  >
+  > Propose before do the work
+  >
+  > where will those clientId info gets stored?
+  >
+  > can you check on the initial guidline to figure out and solidify the requirements from
+  > cleintinstance
+  >
+  > i just want to implment that satisfy minimaim requirements of the homework assignment
+  > on this design. capture X-Client-Instance in headers and to PostgreSQL columns
+
+- **Files.** `src/main/resources/db/migration/V2__client_instance.sql`, `src/main/java/com/cvnstack/controller/ClientInstanceHeader.java`, `src/main/java/com/cvnstack/model/Waitlist.java`, `src/main/java/com/cvnstack/model/Entry.java`, mutating controllers and create/query services, PostgreSQL and Redis adapters, response DTOs, tests, `README.md`, this file.
+- **Tokens.** not yet read from the product usage screen.

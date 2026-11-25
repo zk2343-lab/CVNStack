@@ -68,10 +68,11 @@ public class WaitlistQueryService {
       }
       responses.add(new EntryResponse(
           waitlistId, entry.id(), entry.status(), entry.priority(),
-          position, estimatedWaitTimeMinutes));
+          position, estimatedWaitTimeMinutes, entry.clientInstance()));
     }
     return new WaitlistDetailResponse(
         waitlist.id(), waitlist.name(), waitlist.maxLength(),
-        waitlist.processingTimePerEntryMinutes(), List.copyOf(responses));
+        waitlist.processingTimePerEntryMinutes(), waitlist.clientInstance(),
+        List.copyOf(responses));
   }
 }

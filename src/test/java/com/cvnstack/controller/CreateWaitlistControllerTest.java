@@ -1,6 +1,6 @@
 package com.cvnstack.controller;
 
-import static io.restassured.RestAssured.given;
+import static com.cvnstack.ClientInstanceRequests.givenClient;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -50,7 +50,7 @@ class CreateWaitlistControllerTest {
   void validPostReturns200WithGeneratedIdAndSettings() {
     when(storage.saveWaitlist(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    String id = given().port(port).contentType("application/json")
+    String id = givenClient(port).contentType("application/json")
         .body("""
             {"name":"Support","maxLength":10,"processingTimePerEntryMinutes":5}
             """)
@@ -59,19 +59,21 @@ class CreateWaitlistControllerTest {
         .body("name", equalTo("Support"))
         .body("maxLength", equalTo(10))
         .body("processingTimePerEntryMinutes", equalTo(5))
+        .body("clientInstance", equalTo("cli-1"))
         .body("$", not(hasKey("updatedAt")))
         .extract().path("id");
 
     assertEquals(id, UUID.fromString(id).toString());
-    verify(storage).saveWaitlist(new Waitlist(id, "Support", 10, 5));
+    verify(storage).saveWaitlist(new Waitlist(id, "Support", 10, 5, "cli-1"));
     verifyNoMoreInteractions(storage);
   }
 
   @Test
   void responseUsesPersistedSettings() {
-    when(storage.saveWaitlist(any())).thenReturn(new Waitlist("stored-id", "Stored", 20, 7));
+    when(storage.saveWaitlist(any()))
+        .thenReturn(new Waitlist("stored-id", "Stored", 20, 7, "cli-1"));
 
-    given().port(port).contentType("application/json")
+    givenClient(port).contentType("application/json")
         .body("""
             {"name":"Support","maxLength":10,"processingTimePerEntryMinutes":5}
             """)
@@ -80,7 +82,8 @@ class CreateWaitlistControllerTest {
         .body("id", equalTo("stored-id"))
         .body("name", equalTo("Stored"))
         .body("maxLength", equalTo(20))
-        .body("processingTimePerEntryMinutes", equalTo(7));
+        .body("processingTimePerEntryMinutes", equalTo(7))
+        .body("clientInstance", equalTo("cli-1"));
 
     verify(storage).saveWaitlist(any());
     verifyNoMoreInteractions(storage);
@@ -97,7 +100,7 @@ class CreateWaitlistControllerTest {
       "{\"name\":\"Support\",\"maxLength\":10,\"processingTimePerEntryMinutes\":-1}"
   })
   void invalidSettingsReturn400WithoutPersistence(String body) {
-    given().port(port).contentType("application/json").body(body)
+    givenClient(port).contentType("application/json").body(body)
         .when().post("/waitlists")
         .then().statusCode(400).body("error", equalTo("INVALID_REQUEST"));
 
@@ -107,7 +110,7 @@ class CreateWaitlistControllerTest {
   @ParameterizedTest
   @ValueSource(strings = {"null", "{", ""})
   void malformedOrMissingBodyReturns400WithoutPersistence(String body) {
-    given().port(port).contentType("application/json").body(body)
+    givenClient(port).contentType("application/json").body(body)
         .when().post("/waitlists")
         .then().statusCode(400);
 
@@ -119,7 +122,7 @@ class CreateWaitlistControllerTest {
     when(storage.saveWaitlist(any()))
         .thenThrow(ApiException.conflict("Waitlist name already exists"));
 
-    given().port(port).contentType("application/json")
+    givenClient(port).contentType("application/json")
         .body("""
             {"name":"Support","maxLength":10,"processingTimePerEntryMinutes":5}
             """)

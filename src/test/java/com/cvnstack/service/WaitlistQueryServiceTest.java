@@ -69,6 +69,7 @@ class WaitlistQueryServiceTest {
     assertEquals("Support", response.name());
     assertEquals(10, response.maxLength());
     assertEquals(5, response.processingTimePerEntryMinutes());
+    assertEquals("test-instance", response.clientInstance());
     List<EntryResponse> entries = response.entries();
     assertEquals(3, entries.size());
     assertEquals("bob", entries.get(0).entryId());

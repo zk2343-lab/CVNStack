@@ -11,6 +11,7 @@ import java.util.List;
  * @param name unique waitlist name
  * @param maxLength maximum waiting capacity
  * @param processingTimePerEntryMinutes positive minutes per entry
+ * @param clientInstance creating client instance id
  * @param entries waiting entries first, then the rest
  */
 public record WaitlistDetailResponse(
@@ -18,4 +19,5 @@ public record WaitlistDetailResponse(
     String name,
     int maxLength,
     int processingTimePerEntryMinutes,
+    String clientInstance,
     List<EntryResponse> entries) {}

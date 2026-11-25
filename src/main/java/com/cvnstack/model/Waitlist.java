@@ -13,9 +13,10 @@ public final class Waitlist {
   private final String name;
   private final int maxLength;
   private final int processingTimePerEntryMinutes;
+  private final String clientInstance;
 
   /**
-   * Creates a waitlist value.
+   * Creates a waitlist value with a placeholder instance id for tests.
    *
    * @param id assigned waitlist identifier
    * @param name unique display name
@@ -27,6 +28,24 @@ public final class Waitlist {
       final String name,
       final int maxLength,
       final int processingTimePerEntryMinutes) {
+    this(id, name, maxLength, processingTimePerEntryMinutes, "test-instance");
+  }
+
+  /**
+   * Creates a waitlist value including its creating client instance.
+   *
+   * @param id assigned waitlist identifier
+   * @param name unique display name
+   * @param maxLength maximum number of waiting entries allowed
+   * @param processingTimePerEntryMinutes minutes used for wait estimates
+   * @param clientInstance creating client instance id
+   */
+  public Waitlist(
+      final String id,
+      final String name,
+      final int maxLength,
+      final int processingTimePerEntryMinutes,
+      final String clientInstance) {
     this.id = Objects.requireNonNull(id, "id");
     this.name = Objects.requireNonNull(name, "name");
     if (name.isBlank()) {
@@ -40,6 +59,10 @@ public final class Waitlist {
     }
     this.maxLength = maxLength;
     this.processingTimePerEntryMinutes = processingTimePerEntryMinutes;
+    this.clientInstance = Objects.requireNonNull(clientInstance, "clientInstance");
+    if (clientInstance.isBlank()) {
+      throw new IllegalArgumentException("clientInstance must not be blank");
+    }
   }
 
   /**
@@ -78,6 +101,15 @@ public final class Waitlist {
     return processingTimePerEntryMinutes;
   }
 
+  /**
+   * Returns the client instance that created this waitlist.
+   *
+   * @return client instance id
+   */
+  public String clientInstance() {
+    return clientInstance;
+  }
+
   @Override
   public boolean equals(final Object other) {
     if (this == other) {
@@ -89,11 +121,12 @@ public final class Waitlist {
     return maxLength == waitlist.maxLength
         && processingTimePerEntryMinutes == waitlist.processingTimePerEntryMinutes
         && id.equals(waitlist.id)
-        && name.equals(waitlist.name);
+        && name.equals(waitlist.name)
+        && clientInstance.equals(waitlist.clientInstance);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, name, maxLength, processingTimePerEntryMinutes);
+    return Objects.hash(id, name, maxLength, processingTimePerEntryMinutes, clientInstance);
   }
 }

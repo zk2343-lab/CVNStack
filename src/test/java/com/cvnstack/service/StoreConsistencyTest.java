@@ -1,6 +1,6 @@
 package com.cvnstack.service;
 
-import static io.restassured.RestAssured.given;
+import static com.cvnstack.ClientInstanceRequests.givenClient;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -99,7 +99,7 @@ class StoreConsistencyTest {
 
   @Test
   void debugStoresExposesPostgresRowsAndRedisKeys() {
-    given().port(port)
+    givenClient(port)
         .when().get("/debug/stores")
         .then().statusCode(200)
         .body("waitlists.size()", equalTo(1))
@@ -109,17 +109,17 @@ class StoreConsistencyTest {
 
   @Test
   void wipeStoresClearsPostgresRowsAndRedisKeys() {
-    given().port(port).contentType("application/json")
+    givenClient(port).contentType("application/json")
         .body("{\"name\":\"Alice\",\"priority\":1}")
         .when().post("/waitlists/{id}/entries", waitlist.id())
         .then().statusCode(200);
     assertTrue(cache.findWaitingOrder(waitlist.id()).isPresent());
 
-    given().port(port)
+    givenClient(port)
         .when().post("/debug/wipe-stores")
         .then().statusCode(204);
 
-    given().port(port)
+    givenClient(port)
         .when().get("/debug/stores")
         .then().statusCode(200)
         .body("waitlists.size()", equalTo(0))
@@ -129,13 +129,13 @@ class StoreConsistencyTest {
 
   @Test
   void addPatchDeleteAndServeNextKeepRedisAlignedWithPostgres() {
-    String normalId = given().port(port).contentType("application/json")
+    String normalId = givenClient(port).contentType("application/json")
         .body("{\"name\":\"Alice\",\"priority\":1}")
         .when().post("/waitlists/{id}/entries", waitlist.id())
         .then().statusCode(200)
         .body("position", equalTo(1))
         .extract().path("entryId");
-    String urgentId = given().port(port).contentType("application/json")
+    String urgentId = givenClient(port).contentType("application/json")
         .body("{\"name\":\"Bob\",\"priority\":5}")
         .when().post("/waitlists/{id}/entries", waitlist.id())
         .then().statusCode(200)
@@ -147,7 +147,7 @@ class StoreConsistencyTest {
         storage.findEntry(waitlist.id(), urgentId).orElseThrow().status());
     assertTrue(cache.findEntry(waitlist.id(), urgentId).isPresent());
 
-    given().port(port).contentType("application/json").body("{\"priority\":2}")
+    givenClient(port).contentType("application/json").body("{\"priority\":2}")
         .when().patch("/waitlists/{id}/entries/{entryId}", waitlist.id(), urgentId)
         .then().statusCode(200)
         .body("position", equalTo(1));
@@ -155,14 +155,14 @@ class StoreConsistencyTest {
     assertEquals(2, storage.findEntry(waitlist.id(), urgentId).orElseThrow().priority());
     assertEquals(2, cache.findEntry(waitlist.id(), urgentId).orElseThrow().priority());
 
-    given().port(port)
+    givenClient(port)
         .when().delete("/waitlists/{id}/entries/{entryId}", waitlist.id(), normalId)
         .then().statusCode(200);
     assertTrue(storage.findEntry(waitlist.id(), normalId).isEmpty());
     assertTrue(cache.findEntry(waitlist.id(), normalId).isEmpty());
     assertEquals(Optional.of(List.of(urgentId)), cache.findWaitingOrder(waitlist.id()));
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/{id}/serve-next", waitlist.id())
         .then().statusCode(200)
         .body("entryId", equalTo(urgentId))
@@ -176,18 +176,18 @@ class StoreConsistencyTest {
 
   @Test
   void delayedOlderPatchWriteDoesNotOverwriteNewerCache() {
-    String normalId = given().port(port).contentType("application/json")
+    String normalId = givenClient(port).contentType("application/json")
         .body("{\"name\":\"Alice\",\"priority\":1}")
         .when().post("/waitlists/{id}/entries", waitlist.id())
         .then().statusCode(200)
         .extract().path("entryId");
-    String urgentId = given().port(port).contentType("application/json")
+    String urgentId = givenClient(port).contentType("application/json")
         .body("{\"name\":\"Bob\",\"priority\":5}")
         .when().post("/waitlists/{id}/entries", waitlist.id())
         .then().statusCode(200)
         .extract().path("entryId");
 
-    given().port(port).contentType("application/json").body("{\"priority\":4}")
+    givenClient(port).contentType("application/json").body("{\"priority\":4}")
         .when().patch("/waitlists/{id}/entries/{entryId}", waitlist.id(), urgentId)
         .then().statusCode(200)
         .body("priority", equalTo(4))
@@ -200,7 +200,7 @@ class StoreConsistencyTest {
     consistency.replaceCacheAfterCommit(
         waitlist.id(), delayedOlderWrite, List.of(normalId, urgentId));
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), urgentId)
         .then().statusCode(200)
         .body("priority", equalTo(4))
@@ -218,7 +218,7 @@ class StoreConsistencyTest {
     assertTrue(cache.findWaitingOrder(waitlist.id()).isEmpty());
     assertTrue(cache.findEntry(waitlist.id(), normal.id()).isEmpty());
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), normal.id())
         .then().statusCode(200)
         .body("position", equalTo(2))
@@ -261,7 +261,7 @@ class StoreConsistencyTest {
 
   private int serveNextAfter(CountDownLatch start) throws InterruptedException {
     assertTrue(start.await(5, TimeUnit.SECONDS));
-    return given().port(port)
+    return givenClient(port)
         .when().post("/waitlists/{id}/serve-next", waitlist.id())
         .then().extract().statusCode();
   }

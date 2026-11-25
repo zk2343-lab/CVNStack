@@ -37,7 +37,7 @@ class CreateWaitlistServiceTest {
     Waitlist stored = new Waitlist("stored-id", "Stored settings", 20, 7);
     when(storage.saveWaitlist(any())).thenReturn(stored);
 
-    Waitlist result = service.createWaitlist(new CreateWaitlistRequest("Support", 10, 5));
+    Waitlist result = service.createWaitlist(new CreateWaitlistRequest("Support", 10, 5), "cli-1");
 
     ArgumentCaptor<Waitlist> captor = ArgumentCaptor.forClass(Waitlist.class);
     verify(storage).saveWaitlist(captor.capture());
@@ -46,6 +46,7 @@ class CreateWaitlistServiceTest {
     assertEquals("Support", created.name());
     assertEquals(10, created.maxLength());
     assertEquals(5, created.processingTimePerEntryMinutes());
+    assertEquals("cli-1", created.clientInstance());
     assertSame(stored, result);
     verifyNoMoreInteractions(storage);
   }
@@ -74,7 +75,7 @@ class CreateWaitlistServiceTest {
     when(storage.saveWaitlist(any())).thenThrow(conflict);
 
     ApiException thrown = assertThrows(ApiException.class,
-        () -> service.createWaitlist(new CreateWaitlistRequest("Support", 10, 5)));
+        () -> service.createWaitlist(new CreateWaitlistRequest("Support", 10, 5), "cli-1"));
 
     assertSame(conflict, thrown);
     assertEquals(HttpStatus.CONFLICT, thrown.status());
@@ -84,7 +85,7 @@ class CreateWaitlistServiceTest {
 
   private void assertBadRequest(CreateWaitlistRequest request) {
     ApiException exception = assertThrows(ApiException.class,
-        () -> service.createWaitlist(request));
+        () -> service.createWaitlist(request, "cli-1"));
     assertEquals(HttpStatus.BAD_REQUEST, exception.status());
     assertEquals("INVALID_REQUEST", exception.errorCode());
     verifyNoInteractions(storage);
