@@ -451,3 +451,24 @@ Token totals come from the product's usage screen. If the screen has not been re
   > mvn checkstyle:checkstyle should at end pirn out a link that i can open the genrated report on browser
 
 - **Browser-link files.** `pom.xml`, `README.md`, `reports/checkstyle/README.md`, this file.
+
+## Antigravity
+
+| | |
+| --- | --- |
+| Tool | Google Antigravity |
+| Source | https://antigravity.google |
+| Model | Gemini (managed by Antigravity) |
+| Token total | **26,805,609** (uncached input 1,994,591 + output 98,155 + cache read 24,712,863), summed from local Antigravity session logs on 2026-11-25 (covers Iteration 2 planning, PR #52-#55 reviews, GCP CLI setup, and issue #42). |
+
+### Issue 42 - GCP project, APIs, IAM, VPC, and connector
+
+- **Completed.** 2026-11-25
+- **Purpose.** Enable the GCP APIs needed for managed stores and Cloud Run on project `cvnstack`, create the Serverless VPC Access connector `cvnstack-connector` in `us-central1`, and document the project, APIs, VPC, connector, and IAM status in `docs/gcp.md`.
+- **Prompt.**
+
+  > Check my assigned Iteration 2 issues, inspect the `cvnstack` GCP project for issue #42, enable the required GCP APIs, create the Serverless VPC Access connector in `us-central1`, and document the project, region, APIs, VPC connector, and IAM status in `docs/gcp.md`.
+
+- **Files.** `docs/gcp.md`, this file.
+- **Verification.** `gcloud services list --enabled --project=cvnstack` confirmed all required APIs are `ENABLED`; `gcloud compute networks vpc-access connectors describe cvnstack-connector --project=cvnstack --region=us-central1` confirmed `state: READY` on network `cvnstack` with CIDR `10.8.0.0/28`.
+- **Tokens.** Included in the Antigravity total above (measured local session snapshot before PR submission).
