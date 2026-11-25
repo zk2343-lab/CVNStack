@@ -1,0 +1,4 @@
+# AI-assisted.
+node_modules/
+bin/
+.pulumi/

@@ -1,0 +1,9 @@
+# AI-assisted.
+# Dev stack settings for project cvnstack. No secrets.
+config:
+  gcp:project: cvnstack
+  gcp:region: us-central1
+  gcp:zone: us-central1-a
+  cvnstack:machineType: e2-medium
+  cvnstack:siteSuffix: 5khm3u4xr0cvdjxqkvcf52uv
+encryptionsalt: v1:2fdXxB7txFE=:v1:XtHmUX5WLkWd4EL6:Pj/DRKi6aCfXoC01Pv1yIXykCVB9TA==
