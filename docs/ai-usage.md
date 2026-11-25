@@ -451,3 +451,23 @@ Token totals come from the product's usage screen. If the screen has not been re
   > mvn checkstyle:checkstyle should at end pirn out a link that i can open the genrated report on browser
 
 - **Browser-link files.** `pom.xml`, `README.md`, `reports/checkstyle/README.md`, this file.
+
+### Issue 38 — Package the service for local and Cloud Run
+
+- **Completed.** 2026-11-24
+- **Purpose.** Add a Dockerfile and local Compose stack so PostgreSQL, Redis, and the service image start with the same configuration keys Cloud Run will set, and `GET /health` is served against both stores.
+- **Prompt.**
+
+  > start working on https://github.com/zk2343-lab/CVNStack/issues/38
+
+- **Files.** `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `pom.xml`, `src/main/resources/application.properties`, `src/main/java/com/cvnstack/service/RedisStartupCheck.java`, `src/main/java/com/cvnstack/service/RedisCertificateConfig.java`, `src/test/java/com/cvnstack/service/RedisStartupCheckTest.java`, `src/test/java/com/cvnstack/service/RedisCertificateConfigTest.java`, `README.md`, this file.
+- **Verification.** `docker compose up -d --build`: PostgreSQL, Redis, and the app became healthy. `GET /health` returned 200 `{"status":"UP"}`. Creating a waitlist and entry wrote PostgreSQL and Redis (`GET /debug/stores`). `mvn test` (JDK 21): 259 tests, 0 failures. `mvn checkstyle:check`: 0 violations. The stack was stopped with `docker compose down -v` after the check.
+- **Tokens.** not yet read from the product usage screen.
+- **GCP follow-up.** 2026-11-24: build `linux/amd64`, add the Cloud SQL Postgres socket factory, optional Redis password and TLS CA, listen on `0.0.0.0` and `PORT`, and ping Redis at startup inside the image.
+- **GCP follow-up prompt.**
+
+  > are you sure this is conater is ready for GCP(google cloud) integration? please fact check
+
+  > please make adjustment so the container can adapt on GCP.
+
+- **GCP follow-up verification.** `mvn test` (JDK 21): 263 tests, 0 failures. Checkstyle: 0 violations. Rebuilt image `Arch=amd64`, entrypoint `java -XX:MaxRAMPercentage=75.0 -jar /app/app.jar`, contains `postgres-socket-factory-1.31.1.jar`. `VERIFY_STORES=true`. Container became healthy, `GET /health` returned 200, and a waitlist plus entry wrote both stores. Stopped with `docker compose down -v`.

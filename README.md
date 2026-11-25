@@ -61,11 +61,13 @@ Or after a package:
 java -jar target/cvnstack-0.1.0-SNAPSHOT.jar
 ```
 
-The process listens on port 8080. `GET /health` returns 200 and `{"status":"UP"}`. Stop with Ctrl-C.
+The process listens on `PORT` (default 8080). `GET /health` returns 200 and `{"status":"UP"}`. Stop with Ctrl-C.
 
 The app uses `PostgresWaitlistStorage` and `RedisCacheStorage`. Local defaults are
 `localhost:5432/cvnstack` and Redis `localhost:6379`. Override them with `DATABASE_URL`,
-`DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, and `REDIS_PORT`.
+`DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, and `REDIS_PORT`. Hosts
+come from those variables. To start both stores and the packaged image together, use
+`docker compose up -d` ([local compose and image](#local-compose-and-image-issue-38)).
 
 ### Request-flow visualizer
 
@@ -182,27 +184,63 @@ Lua scripts keep related Redis changes atomic. References:
 4. A missing rank or entry key is rebuilt from PostgreSQL before the HTTP response.
 5. `serve-next` takes the lock, updates `WAITING` to `CALLED` only if the row is still `WAITING`, writes the called entry through to Redis, then removes that member from the waiting order.
 
-### docker-compose (issue #21)
+### Local compose and image (issue #38)
 
-When `docker-compose.yml` is added, start local PostgreSQL and Redis with:
+`docker-compose.yml` starts PostgreSQL 16, Redis 7.4, and the service image.
+`Dockerfile` builds that image from the Spring Boot jar for `linux/amd64`, which
+is the architecture Cloud Run runs. The container is given the same keys Cloud
+Run will set. Java reads those variables (with local defaults only when a
+variable is unset). Compose service names stay in the compose file. The image
+sets `VERIFY_STORES=true`, so startup pings Redis after Flyway migrates
+PostgreSQL. It listens on `0.0.0.0` and `PORT`, and the JVM heap follows the
+container memory limit.
 
 ```bash
 docker compose up -d
+curl -s http://localhost:8080/health
 ```
 
-Point the app at those containers through configuration (do not hardcode hosts in code), for example:
+`GET /health` returns 200 and `{"status":"UP"}` once the process is serving.
+Flyway applies `src/main/resources/db/migration/` on startup, so PostgreSQL must
+be up. `GET /debug/stores` reads both PostgreSQL and Redis. Stop with
+`docker compose down`.
 
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/cvnstack
-spring.datasource.username=cvnstack
-spring.datasource.password=cvnstack
-spring.data.redis.host=localhost
-spring.data.redis.port=6379
+| Key | Compose value for the app container | Spring property |
+| --- | --- | --- |
+| `DATABASE_URL` | `jdbc:postgresql://postgres:5432/cvnstack` | `spring.datasource.url` |
+| `DATABASE_USERNAME` | `cvnstack` | `spring.datasource.username` |
+| `DATABASE_PASSWORD` | `cvnstack` | `spring.datasource.password` |
+| `REDIS_HOST` | `redis` | `spring.data.redis.host` |
+| `REDIS_PORT` | `6379` | `spring.data.redis.port` |
+| `PORT` | `8080` | `server.port` |
+| `REDIS_PASSWORD` | unset | `spring.data.redis.password` |
+| `REDIS_SSL` | `false` | `spring.data.redis.ssl.enabled` |
+| `REDIS_CA_CERT` | unset | Memorystore server CA PEM path |
+| `VERIFY_STORES` | `true` in the image | ping Redis during startup |
+| `DATABASE_POOL_SIZE` | `5` | Hikari maximum pool size |
+
+Ports `5432`, `6379`, and `8080` are published on the host. A `java -jar` process
+on the host can keep the `localhost` defaults. The app container uses the Compose
+service names in the table, because Compose sets those keys. Memorystore AUTH
+sets `REDIS_PASSWORD`. In-transit encryption sets `REDIS_SSL=true`,
+`REDIS_PORT=6378`, and `REDIS_CA_CERT` to the mounted server CA.
+
+### Cloud SQL and Memorystore
+
+Use the same property keys. A private-IP JDBC URL works when the Cloud Run
+service can reach that address. For the Cloud SQL Java connector, set
+`DATABASE_URL` to a socket-factory URL. The `postgres-socket-factory` library is
+on the classpath. `cloudSqlRefreshStrategy=lazy` avoids background refreshes
+while Cloud Run is throttling CPU. The connector still needs a network path
+(VPC connector or Direct VPC egress) and Application Default Credentials.
+
+```text
+jdbc:postgresql:///cvnstack?cloudSqlInstance=PROJECT:REGION:INSTANCE&socketFactory=com.google.cloud.sql.postgres.SocketFactory&ipTypes=PRIVATE&cloudSqlRefreshStrategy=lazy
 ```
 
-### Cloud SQL and Memorystore (issue #21)
-
-Use the same property keys. Replace host, port, database name, and credentials with the Cloud SQL instance and Memorystore endpoint for the deployed environment (private IP or Cloud SQL Auth Proxy as chosen in that issue). No code change should be required beyond configuration.
+`DATABASE_USERNAME` and `DATABASE_PASSWORD` stay separate. Cloud Run can inject
+the password from Secret Manager. Memorystore still uses `REDIS_HOST` and
+`REDIS_PORT`.
 
 ## Domain rules (MVP)
 

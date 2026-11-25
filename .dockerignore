@@ -1,0 +1,13 @@
+# AI-assisted.
+# Image builds only need the Maven project. Leave reports and local secrets out.
+.git
+.cursor
+.idea
+.vscode
+target
+reports
+docs
+scripts
+*.md
+.env
+.env.*
