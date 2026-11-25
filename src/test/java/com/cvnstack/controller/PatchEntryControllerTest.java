@@ -1,6 +1,6 @@
 package com.cvnstack.controller;
 
-import static io.restassured.RestAssured.given;
+import static com.cvnstack.ClientInstanceRequests.givenClient;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -68,19 +68,20 @@ class PatchEntryControllerTest {
   @ParameterizedTest
   @ValueSource(strings = {"5", "\"5\""})
   void priorityOnlyReturnsDerivedRankingAndStoredTimestamp(String priority) {
-    given().port(port).contentType("application/json").body("{\"priority\":" + priority + "}")
+    givenClient(port).contentType("application/json").body("{\"priority\":" + priority + "}")
         .patch("/waitlists/wl/entries/e").then().statusCode(200)
         .body("priority", equalTo(5)).body("status", equalTo("WAITING"))
         .body("updatedAt", equalTo(timestamp.plusSeconds(20).toString()))
         .body("position", equalTo(1)).body("estimatedWaitTimeMinutes", equalTo(0))
-        .body("size()", equalTo(7));
+        .body("clientInstance", equalTo("test-instance"))
+        .body("size()", equalTo(8));
   }
 
   @ParameterizedTest
   @ValueSource(strings = {"{\"status\":\"CALLED\"}",
       "{\"status\":\"CALLED\",\"priority\":5}"})
   void statusAndBothReturnNullWaitingInformation(String body) {
-    given().port(port).contentType("application/json").body(body)
+    givenClient(port).contentType("application/json").body(body)
         .patch("/waitlists/wl/entries/e").then().statusCode(200)
         .body("status", equalTo("CALLED"))
         .body("position", nullValue()).body("estimatedWaitTimeMinutes", nullValue());
@@ -89,7 +90,7 @@ class PatchEntryControllerTest {
   @ParameterizedTest
   @ValueSource(strings = {"5.9", "4.5", "5.0", "5e0"})
   void floatingPointPriorityReturns400BeforePersistence(String priority) {
-    given().port(port).contentType("application/json").body("{\"priority\":" + priority + "}")
+    givenClient(port).contentType("application/json").body("{\"priority\":" + priority + "}")
         .patch("/waitlists/wl/entries/e").then().statusCode(400);
     verifyNoInteractions(storage, cache);
   }
@@ -98,7 +99,7 @@ class PatchEntryControllerTest {
   @ValueSource(strings = {"", "{}", "null", "{\"status\":null,\"priority\":null}",
       "{\"priority\":0}", "{\"priority\":6}", "{\"status\":\"UNKNOWN\"}"})
   void invalidRequestsReturn400WithoutMutation(String body) {
-    given().port(port).contentType("application/json").body(body)
+    givenClient(port).contentType("application/json").body(body)
         .patch("/waitlists/wl/entries/e").then().statusCode(400);
     verify(storage, never()).updateEntryIfUnchanged(any(), any());
   }
@@ -118,7 +119,7 @@ class PatchEntryControllerTest {
   @ParameterizedTest
   @ValueSource(strings = {"{\"status\":\"WAITING\"}", "{\"priority\":1}"})
   void repeatedValueReturns200WithoutWrite(String body) {
-    given().port(port).contentType("application/json").body(body)
+    givenClient(port).contentType("application/json").body(body)
         .patch("/waitlists/wl/entries/e").then().statusCode(200)
         .body("updatedAt", equalTo(timestamp.toString()));
     verify(storage, never()).updateEntryIfUnchanged(any(), any());
@@ -128,16 +129,16 @@ class PatchEntryControllerTest {
   void terminalStateCannotBeLeftBySecondPatch() {
     when(storage.findEntry("wl", "e")).thenReturn(Optional.of(current),
         Optional.of(current.withStatus(EntryStatus.CANCELLED)));
-    given().port(port).contentType("application/json").body("{\"status\":\"CANCELLED\"}")
+    givenClient(port).contentType("application/json").body("{\"status\":\"CANCELLED\"}")
         .patch("/waitlists/wl/entries/e").then().statusCode(200);
-    given().port(port).contentType("application/json").body("{\"status\":\"WAITING\"}")
+    givenClient(port).contentType("application/json").body("{\"status\":\"WAITING\"}")
         .patch("/waitlists/wl/entries/e").then().statusCode(400)
         .body("error", equalTo("INVALID_STATE_TRANSITION"));
     verify(storage, times(1)).updateEntryIfUnchanged(any(), any());
   }
 
   private void patchPriority(int code) {
-    given().port(port).contentType("application/json").body("{\"priority\":5}")
+    givenClient(port).contentType("application/json").body("{\"priority\":5}")
         .patch("/waitlists/wl/entries/e").then().statusCode(code);
     verify(storage, never()).updateEntryIfUnchanged(any(), any());
   }

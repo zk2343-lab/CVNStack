@@ -62,7 +62,8 @@ public class ServeNextService {
           Entry called = claimed.get();
           consistency.writeThroughCalledEntry(waitlistId, called);
           return Optional.of(new ServeNextResponse(
-              called.waitlistId(), called.id(), called.status(), called.priority()));
+              called.waitlistId(), called.id(), called.status(), called.priority(),
+              called.clientInstance()));
         }
       }
       return Optional.empty();

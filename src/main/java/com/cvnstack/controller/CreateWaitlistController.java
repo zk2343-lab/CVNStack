@@ -7,6 +7,7 @@ import com.cvnstack.service.CreateWaitlistService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -31,14 +32,17 @@ public class CreateWaitlistController {
   /**
    * Creates a waitlist from client settings.
    *
+   * @param clientInstance creating client instance
    * @param request settings to validate and store
    * @return 200 with the stored identifier and settings
    */
   @PostMapping("/waitlists")
   public ResponseEntity<WaitlistResponse> createWaitlist(
+      @RequestHeader(value = ClientInstanceHeader.NAME, required = false) String clientInstance,
       @RequestBody CreateWaitlistRequest request) {
-    Waitlist saved = service.createWaitlist(request);
+    Waitlist saved = service.createWaitlist(request, ClientInstanceHeader.require(clientInstance));
     return ResponseEntity.ok(new WaitlistResponse(
-        saved.id(), saved.name(), saved.maxLength(), saved.processingTimePerEntryMinutes()));
+        saved.id(), saved.name(), saved.maxLength(), saved.processingTimePerEntryMinutes(),
+        saved.clientInstance()));
   }
 }

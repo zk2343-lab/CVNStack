@@ -82,7 +82,7 @@ public class RedisCacheStorage implements CacheStorage {
         'id', ARGV[1], 'waitlistId', ARGV[2], 'name', ARGV[3],
         'priority', ARGV[4], 'status', ARGV[5], 'insertedAt', ARGV[6],
         'calledAt', ARGV[7], 'updatedAt', ARGV[8],
-        'updatedAtMillis', ARGV[9])
+        'updatedAtMillis', ARGV[9], 'clientInstance', ARGV[10])
       redis.call('SADD', KEYS[2], KEYS[1])
       return 1
       """, Long.class);
@@ -192,7 +192,8 @@ public class RedisCacheStorage implements CacheStorage {
         entry.status().name(), entry.insertedAt().toString(),
         entry.calledAt() == null ? "" : entry.calledAt().toString(),
         entry.updatedAt() == null ? "" : entry.updatedAt().toString(),
-        Long.toString(updatedAtMillis(entry.updatedAt())));
+        Long.toString(updatedAtMillis(entry.updatedAt())),
+        entry.clientInstance());
   }
 
   @Override
@@ -204,6 +205,10 @@ public class RedisCacheStorage implements CacheStorage {
     }
     String calledAt = (String) fields.get("calledAt");
     String updatedAt = (String) fields.get("updatedAt");
+    String clientInstance = (String) fields.get("clientInstance");
+    if (clientInstance == null || clientInstance.isBlank()) {
+      return Optional.empty();
+    }
     return Optional.of(new Entry(
         (String) fields.get("id"),
         (String) fields.get("waitlistId"),
@@ -212,7 +217,8 @@ public class RedisCacheStorage implements CacheStorage {
         EntryStatus.valueOf((String) fields.get("status")),
         Instant.parse((String) fields.get("insertedAt")),
         calledAt == null || calledAt.isEmpty() ? null : Instant.parse(calledAt),
-        updatedAt == null || updatedAt.isEmpty() ? null : Instant.parse(updatedAt)));
+        updatedAt == null || updatedAt.isEmpty() ? null : Instant.parse(updatedAt),
+        clientInstance));
   }
 
   @Override

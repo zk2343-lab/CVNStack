@@ -31,13 +31,14 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
 
   private static final RowMapper<Waitlist> WAITLIST_MAPPER = (row, index) -> new Waitlist(
       row.getObject("id", UUID.class).toString(), row.getString("name"),
-      row.getInt("max_length"), row.getInt("processing_time_per_entry_minutes"));
+      row.getInt("max_length"), row.getInt("processing_time_per_entry_minutes"),
+      row.getString("client_instance_id"));
   private static final RowMapper<Entry> ENTRY_MAPPER = (row, index) -> new Entry(
       row.getObject("id", UUID.class).toString(),
       row.getObject("waitlist_id", UUID.class).toString(), row.getString("name"),
       row.getInt("priority"), EntryStatus.valueOf(row.getString("status")),
       row.getTimestamp("inserted_at").toInstant(), nullableInstant(row, "called_at"),
-      row.getTimestamp("updated_at").toInstant());
+      row.getTimestamp("updated_at").toInstant(), row.getString("client_instance_id"));
 
   private final JdbcTemplate jdbc;
   private final TransactionTemplate capacityTransaction;
@@ -61,14 +62,17 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
   public Waitlist saveWaitlist(Waitlist waitlist) {
     try {
       return jdbc.queryForObject("""
-          INSERT INTO waitlists (id, name, max_length, processing_time_per_entry_minutes)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO waitlists (
+              id, name, max_length, processing_time_per_entry_minutes, client_instance_id)
+          VALUES (?, ?, ?, ?, ?)
           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
               max_length = EXCLUDED.max_length,
-              processing_time_per_entry_minutes = EXCLUDED.processing_time_per_entry_minutes
+              processing_time_per_entry_minutes = EXCLUDED.processing_time_per_entry_minutes,
+              client_instance_id = EXCLUDED.client_instance_id
           RETURNING *
           """, WAITLIST_MAPPER, parseUuid(waitlist.id(), "waitlist id"), waitlist.name(),
-          waitlist.maxLength(), waitlist.processingTimePerEntryMinutes());
+          waitlist.maxLength(), waitlist.processingTimePerEntryMinutes(),
+          waitlist.clientInstance());
     } catch (DataIntegrityViolationException exception) {
       if (isConstraintViolation(exception, "23505", "uq_waitlists_name")) {
         throw ApiException.conflict("Waitlist name already exists");
@@ -93,13 +97,15 @@ public class PostgresWaitlistStorage implements WaitlistStorage {
   public Entry saveEntry(Entry entry) {
     try {
       return jdbc.queryForObject("""
-          INSERT INTO entries (id, waitlist_id, name, priority, status, inserted_at, called_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO entries (
+              id, waitlist_id, name, priority, status, inserted_at, called_at, client_instance_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           RETURNING *
           """, ENTRY_MAPPER, parseUuid(entry.id(), "entry id"),
           parseUuid(entry.waitlistId(), "waitlist id"),
           entry.name(), entry.priority(), entry.status().name(), Timestamp.from(entry.insertedAt()),
-          entry.calledAt() == null ? null : Timestamp.from(entry.calledAt()));
+          entry.calledAt() == null ? null : Timestamp.from(entry.calledAt()),
+          entry.clientInstance());
     } catch (DataIntegrityViolationException exception) {
       if (isConstraintViolation(exception, "23503", "fk_entries_waitlist")) {
         throw ApiException.notFound("Waitlist does not exist");

@@ -27,6 +27,7 @@ public final class Entry {
   private final Instant insertedAt;
   private final Instant calledAt;
   private final Instant updatedAt;
+  private final String clientInstance;
 
   /**
    * Creates an entry value.
@@ -91,6 +92,32 @@ public final class Entry {
       final Instant insertedAt,
       final Instant calledAt,
       final Instant updatedAt) {
+    this(id, waitlistId, name, priority, status, insertedAt, calledAt, updatedAt, "test-instance");
+  }
+
+  /**
+   * Creates an entry including the creating client instance.
+   *
+   * @param id assigned entry identifier
+   * @param waitlistId owning waitlist identifier
+   * @param name entry display name
+   * @param priority urgency from MIN_PRIORITY to MAX_PRIORITY
+   * @param status current lifecycle status
+   * @param insertedAt business insertion time
+   * @param calledAt supplied call time, or null
+   * @param updatedAt database write time, or null before persistence
+   * @param clientInstance creating client instance id
+   */
+  public Entry(
+      final String id,
+      final String waitlistId,
+      final String name,
+      final int priority,
+      final EntryStatus status,
+      final Instant insertedAt,
+      final Instant calledAt,
+      final Instant updatedAt,
+      final String clientInstance) {
     this.id = Objects.requireNonNull(id, "id");
     this.waitlistId = Objects.requireNonNull(waitlistId, "waitlistId");
     this.name = Objects.requireNonNull(name, "name");
@@ -106,6 +133,10 @@ public final class Entry {
     this.insertedAt = Objects.requireNonNull(insertedAt, "insertedAt");
     this.calledAt = calledAt;
     this.updatedAt = updatedAt;
+    this.clientInstance = Objects.requireNonNull(clientInstance, "clientInstance");
+    if (clientInstance.isBlank()) {
+      throw new IllegalArgumentException("clientInstance must not be blank");
+    }
   }
 
   /**
@@ -181,13 +212,24 @@ public final class Entry {
   }
 
   /**
+   * Returns the client instance that created this entry.
+   *
+   * @return client instance id
+   */
+  public String clientInstance() {
+    return clientInstance;
+  }
+
+  /**
    * Returns a copy with a different status.
    *
    * @param newStatus replacement status
    * @return new entry value
    */
   public Entry withStatus(final EntryStatus newStatus) {
-    return new Entry(id, waitlistId, name, priority, newStatus, insertedAt, calledAt, updatedAt);
+    return new Entry(
+        id, waitlistId, name, priority, newStatus, insertedAt, calledAt, updatedAt,
+        clientInstance);
   }
 
   /**
@@ -197,7 +239,9 @@ public final class Entry {
    * @return new entry value
    */
   public Entry withPriority(final int newPriority) {
-    return new Entry(id, waitlistId, name, newPriority, status, insertedAt, calledAt, updatedAt);
+    return new Entry(
+        id, waitlistId, name, newPriority, status, insertedAt, calledAt, updatedAt,
+        clientInstance);
   }
 
   @Override
@@ -215,11 +259,13 @@ public final class Entry {
         && status == entry.status
         && insertedAt.equals(entry.insertedAt)
         && Objects.equals(calledAt, entry.calledAt)
-        && Objects.equals(updatedAt, entry.updatedAt);
+        && Objects.equals(updatedAt, entry.updatedAt)
+        && clientInstance.equals(entry.clientInstance);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, waitlistId, name, priority, status, insertedAt, calledAt, updatedAt);
+    return Objects.hash(
+        id, waitlistId, name, priority, status, insertedAt, calledAt, updatedAt, clientInstance);
   }
 }

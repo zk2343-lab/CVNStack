@@ -29,9 +29,10 @@ public class CreateWaitlistService {
    * Creates a waitlist and returns the persisted value.
    *
    * @param request client settings
+   * @param clientInstance creating client instance id
    * @return stored waitlist
    */
-  public Waitlist createWaitlist(CreateWaitlistRequest request) {
+  public Waitlist createWaitlist(CreateWaitlistRequest request, String clientInstance) {
     if (request == null || request.name() == null || request.name().isBlank()) {
       throw ApiException.badRequest("name must not be blank");
     }
@@ -43,6 +44,6 @@ public class CreateWaitlistService {
     }
     return storage.saveWaitlist(new Waitlist(
         UUID.randomUUID().toString(), request.name(), request.maxLength(),
-        request.processingTimePerEntryMinutes()));
+        request.processingTimePerEntryMinutes(), clientInstance));
   }
 }

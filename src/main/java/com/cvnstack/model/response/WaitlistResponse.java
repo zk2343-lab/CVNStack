@@ -9,6 +9,11 @@ package com.cvnstack.model.response;
  * @param name unique waitlist name
  * @param maxLength maximum waiting capacity
  * @param processingTimePerEntryMinutes positive minutes per entry
+ * @param clientInstance creating client instance id
  */
 public record WaitlistResponse(
-    String id, String name, int maxLength, int processingTimePerEntryMinutes) {}
+    String id,
+    String name,
+    int maxLength,
+    int processingTimePerEntryMinutes,
+    String clientInstance) {}

@@ -60,7 +60,7 @@ class CreateEntryServiceTest {
       assertNull(entry.updatedAt());
       assertNotNull(entry.insertedAt());
       Entry saved = new Entry(entry.id(), entry.waitlistId(), entry.name(), entry.priority(),
-          entry.status(), entry.insertedAt(), null, Instant.now());
+          entry.status(), entry.insertedAt(), null, Instant.now(), entry.clientInstance());
       entries.add(saved);
       return saved;
     });
@@ -70,13 +70,15 @@ class CreateEntryServiceTest {
   @Test
   void validCreateUsesPersistedEntryAndUpdatesBothCacheRepresentations() {
     allowInsert();
-    EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 3));
+    EntryResponse response =
+        service.createEntry("wl-1", new CreateEntryRequest("Alice", 3), "cli-1");
     assertEquals(response.entryId(), UUID.fromString(response.entryId()).toString());
     assertEquals("wl-1", response.waitlistId());
     assertEquals(EntryStatus.WAITING, response.status());
     assertEquals(3, response.priority());
     assertEquals(1, response.position());
     assertEquals(0, response.estimatedWaitTimeMinutes());
+    assertEquals("cli-1", response.clientInstance());
     assertEquals(1, entries.size());
     assertEquals("Alice", entries.getFirst().name());
     assertNotNull(entries.getFirst().updatedAt());
@@ -93,7 +95,8 @@ class CreateEntryServiceTest {
   @Test
   void omittedPriorityDefaultsToOne() {
     allowInsert();
-    assertEquals(1, service.createEntry("wl-1", new CreateEntryRequest("Alice", null)).priority());
+    assertEquals(1, service.createEntry(
+        "wl-1", new CreateEntryRequest("Alice", null), "cli-1").priority());
     assertEquals(1, entries.getFirst().priority());
   }
 
@@ -109,7 +112,7 @@ class CreateEntryServiceTest {
   @MethodSource("invalidRequests")
   void invalidRequestsNeverAccessStorage(CreateEntryRequest request) {
     ApiException exception = assertThrows(ApiException.class,
-        () -> service.createEntry("wl-1", request));
+        () -> service.createEntry("wl-1", request, "cli-1"));
     assertEquals(HttpStatus.BAD_REQUEST, exception.status());
     assertEquals("INVALID_REQUEST", exception.errorCode());
     verifyNoInteractions(storage, cache);
@@ -119,7 +122,7 @@ class CreateEntryServiceTest {
   void missingWaitlistDoesNotInsert() {
     when(storage.findWaitlistById("wl-1")).thenReturn(Optional.empty());
     ApiException exception = assertThrows(ApiException.class,
-        () -> service.createEntry("wl-1", new CreateEntryRequest("Alice", 1)));
+        () -> service.createEntry("wl-1", new CreateEntryRequest("Alice", 1), "cli-1"));
     assertEquals(HttpStatus.NOT_FOUND, exception.status());
     assertEquals("Waitlist does not exist", exception.getMessage());
     verify(storage).findWaitlistById("wl-1");
@@ -132,7 +135,7 @@ class CreateEntryServiceTest {
     ApiException full = ApiException.capacityExceeded("Waitlist is full");
     when(storage.insertEntryIfCapacityAvailable(any())).thenThrow(full);
     assertSame(full, assertThrows(ApiException.class,
-        () -> service.createEntry("wl-1", new CreateEntryRequest("Alice", 1))));
+        () -> service.createEntry("wl-1", new CreateEntryRequest("Alice", 1), "cli-1")));
     assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, full.status());
     verify(storage).findWaitlistById("wl-1");
     verify(storage).insertEntryIfCapacityAvailable(any());
@@ -143,8 +146,8 @@ class CreateEntryServiceTest {
   @Test
   void duplicateNamesCreateDistinctEntries() {
     allowInsert();
-    EntryResponse first = service.createEntry("wl-1", new CreateEntryRequest("Alice", 1));
-    EntryResponse second = service.createEntry("wl-1", new CreateEntryRequest("Alice", 1));
+    EntryResponse first = service.createEntry("wl-1", new CreateEntryRequest("Alice", 1), "cli-1");
+    EntryResponse second = service.createEntry("wl-1", new CreateEntryRequest("Alice", 1), "cli-1");
     assertNotEquals(first.entryId(), second.entryId());
     assertEquals(2, entries.size());
     verify(storage, never()).saveEntry(any());
@@ -154,7 +157,8 @@ class CreateEntryServiceTest {
   void redisFailureAfterInsertInvalidatesAndStillReturnsTheCommittedEntry() {
     allowInsert();
     doThrow(new IllegalStateException("Redis unavailable")).when(cache).putEntry(any());
-    EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 1));
+    EntryResponse response =
+        service.createEntry("wl-1", new CreateEntryRequest("Alice", 1), "cli-1");
     assertEquals(1, response.position());
     verify(cache).invalidateWaitlist("wl-1");
   }
@@ -163,7 +167,8 @@ class CreateEntryServiceTest {
   void higherPriorityJumpsAheadOfOlderEntry() {
     allowInsert();
     entries.add(new Entry("older", "wl-1", "Bob", 1, EntryStatus.WAITING, Instant.EPOCH));
-    EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 5));
+    EntryResponse response =
+        service.createEntry("wl-1", new CreateEntryRequest("Alice", 5), "cli-1");
     assertEquals(1, response.position());
     assertEquals(0, response.estimatedWaitTimeMinutes());
     verify(cache).replaceWaitingOrderIfNewer(
@@ -176,7 +181,8 @@ class CreateEntryServiceTest {
     entries.add(new Entry("older", "wl-1", "Bob", 3, EntryStatus.WAITING, Instant.EPOCH));
     entries.add(new Entry("urgent", "wl-1", "Carol", 5, EntryStatus.WAITING, Instant.EPOCH));
     entries.add(new Entry("called", "wl-1", "Dan", 5, EntryStatus.CALLED, Instant.EPOCH));
-    EntryResponse response = service.createEntry("wl-1", new CreateEntryRequest("Alice", 3));
+    EntryResponse response =
+        service.createEntry("wl-1", new CreateEntryRequest("Alice", 3), "cli-1");
     assertEquals(3, response.position());
     assertEquals(10, response.estimatedWaitTimeMinutes());
     verify(cache).replaceWaitingOrderIfNewer(

@@ -471,3 +471,28 @@ Token totals come from the product's usage screen. If the screen has not been re
   > please make adjustment so the container can adapt on GCP.
 
 - **GCP follow-up verification.** `mvn test` (JDK 21): 263 tests, 0 failures. Checkstyle: 0 violations. Rebuilt image `Arch=amd64`, entrypoint `java -XX:MaxRAMPercentage=75.0 -jar /app/app.jar`, contains `postgres-socket-factory-1.31.1.jar`. `VERIFY_STORES=true`. Container became healthy, `GET /health` returned 200, and a waitlist plus entry wrote both stores. Stopped with `docker compose down -v`.
+
+### Issue 40 — Client instance identity via X-Client-Instance
+
+- **Completed.** 2026-11-24
+- **Purpose.** Require `X-Client-Instance` on mutating waitlist routes, persist it on waitlist and entry rows in PostgreSQL, and return `clientInstance` on reads.
+- **Prompt.**
+
+  > can you work on https://github.com/zk2343-lab/CVNStack/issues/40?
+  >
+  > wonder if there should be some inhouse built-in solution, provided by java springboot
+  > framework (or whatever the proejct built on), or GCP that supporst client registry and
+  > recogniztion of clientId and associated X-Client-Instance.
+  >
+  > Propose before do the work
+  >
+  > where will those clientId info gets stored?
+  >
+  > can you check on the initial guidline to figure out and solidify the requirements from
+  > cleintinstance
+  >
+  > i just want to implment that satisfy minimaim requirements of the homework assignment
+  > on this design. capture X-Client-Instance in headers and to PostgreSQL columns
+
+- **Files.** `src/main/resources/db/migration/V2__client_instance.sql`, `src/main/java/com/cvnstack/controller/ClientInstanceHeader.java`, `src/main/java/com/cvnstack/model/Waitlist.java`, `src/main/java/com/cvnstack/model/Entry.java`, mutating controllers and create/query services, PostgreSQL and Redis adapters, response DTOs, tests, `README.md`, this file.
+- **Tokens.** not yet read from the product usage screen.

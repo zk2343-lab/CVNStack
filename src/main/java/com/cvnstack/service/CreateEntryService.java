@@ -43,9 +43,11 @@ public class CreateEntryService {
    *
    * @param waitlistId owning waitlist id from the path
    * @param request entry name and optional priority
+   * @param clientInstance creating client instance id
    * @return persisted entry details with waiting information
    */
-  public EntryResponse createEntry(String waitlistId, CreateEntryRequest request) {
+  public EntryResponse createEntry(
+      String waitlistId, CreateEntryRequest request, String clientInstance) {
     if (request == null || request.name() == null || request.name().isBlank()) {
       throw ApiException.badRequest("Name must not be blank");
     }
@@ -56,7 +58,7 @@ public class CreateEntryService {
     Waitlist waitlist = storage.findWaitlistById(waitlistId)
         .orElseThrow(() -> ApiException.notFound("Waitlist does not exist"));
     Entry entry = new Entry(UUID.randomUUID().toString(), waitlistId, request.name(),
-        priority, EntryStatus.WAITING, Instant.now());
+        priority, EntryStatus.WAITING, Instant.now(), null, null, clientInstance);
     Entry savedEntry = storage.insertEntryIfCapacityAvailable(entry);
     List<Entry> entries = storage.findEntriesByWaitlistId(waitlistId);
     List<Entry> ranked = rules.rankedWaiting(entries);
@@ -66,6 +68,6 @@ public class CreateEntryService {
     consistency.replaceCacheAfterCommit(
         waitlistId, savedEntry, ranked.stream().map(Entry::id).toList());
     return new EntryResponse(savedEntry.waitlistId(), savedEntry.id(), savedEntry.status(),
-        savedEntry.priority(), position, estimate);
+        savedEntry.priority(), position, estimate, savedEntry.clientInstance());
   }
 }

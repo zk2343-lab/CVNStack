@@ -252,6 +252,20 @@ the password from Secret Manager. Memorystore still uses `REDIS_HOST` and
 - Priority changes only while `WAITING` or `CALLED`.
 - Waitlist names are unique.
 
+## Client instance identity (issue #40)
+
+The service tells copies of the same client apart with the `X-Client-Instance` header.
+Each running copy (for example one laptop) sends a stable id on every write. The
+service stores that id on the waitlist or entry row in PostgreSQL and returns it as
+`clientInstance` on reads. Two copies can share one waitlist; their ids stay distinct
+on the rows they created.
+
+Required on `POST /waitlists`, `POST /waitlists/{id}/entries`,
+`PATCH /waitlists/{id}/entries/{entryId}`, `DELETE /waitlists/{id}/entries/{entryId}`,
+and `POST /waitlists/{id}/serve-next`. Missing or blank is **400** `INVALID_REQUEST`.
+GET routes do not require the header. Later mutations still send the header but do
+not overwrite the stored creator.
+
 ## HTTP status and error body
 
 Error body shape: `{ "error": "...", "message": "..." }` (`model.response.ErrorResponse`). Controllers return Spring `ResponseEntity`.
@@ -272,15 +286,18 @@ Routes that are not implemented return Spring's default 404, not the waitlist `N
 
 ### `POST /waitlists` (issue #4)
 
-- **Input:** JSON with waitlist `name`, `maxLength`, and `processingTimePerEntryMinutes`.
-- **Success:** 200 with the assigned waitlist id (and settings as implemented).
+- **Input:** JSON with waitlist `name`, `maxLength`, and `processingTimePerEntryMinutes`;
+  header `X-Client-Instance` required.
+- **Success:** 200 with the assigned waitlist id, settings, and `clientInstance`.
 - **Side effects:** Inserts the waitlist in PostgreSQL; may seed Redis structures.
 - **Errors:** 400 invalid fields; 409 name already exists.
 
 ### `POST /waitlists/{id}/entries` (issue #5)
 
-- **Input:** path `id`; JSON with entry `name` and optional `priority` (1–5, default 1).
-- **Success:** 200 with entry id, status `WAITING`, position, and `estimatedWaitTimeMinutes`.
+- **Input:** path `id`; JSON with entry `name` and optional `priority` (1–5, default 1);
+  header `X-Client-Instance` required.
+- **Success:** 200 with entry id, status `WAITING`, position, `estimatedWaitTimeMinutes`,
+  and `clientInstance`.
 - **Side effects:** Inserts the entry; updates waiting order in Redis after PostgreSQL commit.
 - **Errors:** 404 unknown waitlist; 400 invalid fields; 422 capacity exceeded.
 - **Idempotency:** entry creates are **not** idempotent (see deviations).
@@ -288,16 +305,18 @@ Routes that are not implemented return Spring's default 404, not the waitlist `N
 ### `GET /waitlists/{id}`
 
 - **Input:** path `id`. No body.
-- **Success:** 200 with waitlist settings and `entries` in waiting order (higher
-  priority first, then earlier insertion). Non-waiting entries follow, with
-  `position` and estimate null.
+- **Success:** 200 with waitlist settings, `clientInstance`, and `entries` in waiting
+  order (higher priority first, then earlier insertion). Each entry includes
+  `clientInstance`. Non-waiting entries follow, with `position` and estimate null.
 - **Side effects:** none. A repeated get does not change stored data.
 - **Errors:** 404 unknown waitlist; 400 invalid waitlist id.
 
 ### `GET /waitlists/{id}/entries/{entryId}` (issue #6)
 
 - **Input:** path `id`, `entryId`. No body.
-- **Success:** 200 with `waitlistId`, `entryId`, `status`, `priority`, `position`, `estimatedWaitTimeMinutes` (`position` / estimate null when not `WAITING`).
+- **Success:** 200 with `waitlistId`, `entryId`, `status`, `priority`, `position`,
+  `estimatedWaitTimeMinutes`, `clientInstance` (`position` / estimate null when not
+  `WAITING`).
 - **Side effects:** a missing entry or rank key is rebuilt into Redis from PostgreSQL.
 - **Errors:** 404 waitlist or entry missing, or entry on another waitlist.
 - **Implementation:** `EntryQueryService` reads through `CacheConsistencyService`.
@@ -306,8 +325,9 @@ Routes that are not implemented return Spring's default 404, not the waitlist `N
 
 ### `POST /waitlists/{id}/serve-next` (issue #7)
 
-- **Input:** path `id`. No body.
-- **Success:** 200 with `waitlistId`, `entryId`, `status: "CALLED"`, and `priority`;
+- **Input:** path `id`; header `X-Client-Instance` required. No body.
+- **Success:** 200 with `waitlistId`, `entryId`, `status: "CALLED"`, `priority`, and
+  `clientInstance`;
   **204** without a body when no waiting candidate can be claimed.
 - **Side effects:** Takes the serve-next lock, records `CALLED` through a conditional
   database update, writes the called entry through to Redis, then removes that member
@@ -323,14 +343,15 @@ that another request has already claimed. `StoreConsistencyTest` runs both store
 
 ### `PATCH /waitlists/{id}/entries/{entryId}` (issue #8)
 
-- **Input:** path ids; JSON with optional `status` and/or `priority`. Empty body is 400 `INVALID_REQUEST`.
+- **Input:** path ids; header `X-Client-Instance` required; JSON with optional
+  `status` and/or `priority`. Empty body is 400 `INVALID_REQUEST`.
 - **Success:** 200 with updated entry, position/estimate when still waiting.
 - **Side effects:** status/priority persisted; rank rebuilt when waiting order changes.
 - **Errors:** 404 missing waitlist/entry; 400 `INVALID_STATE_TRANSITION` or `INVALID_REQUEST`.
 
 ### `DELETE /waitlists/{id}/entries/{entryId}` (issue #9)
 
-- **Input:** path ids.
+- **Input:** path ids; header `X-Client-Instance` required.
 - **Success:** 200 confirming removal.
 - **Side effects:** entry removed; waiting positions for remaining entries shift.
 - **Errors:** 404 if waitlist/entry missing or already removed.
@@ -357,6 +378,7 @@ that another request has already claimed. `StoreConsistencyTest` runs both store
 2. `PATCH` `SERVED` → `WAITING` → **400** `INVALID_STATE_TRANSITION`.
 3. `POST /waitlists` twice with the same name → second call **409** `CONFLICT`.
 4. Add entries until `maxLength`, then add another → **422** `CAPACITY_EXCEEDED`.
+5. Mutating route without `X-Client-Instance` → **400** `INVALID_REQUEST`.
 
 ## Deviations from the written proposal
 
