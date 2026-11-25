@@ -43,4 +43,4 @@ mvn checkstyle:check
 
 Commit messages say what was added, removed, or changed. Author and committer must be the human's school GitHub identity for this repository. One approving review from another teammate is enough: Ding Wang (`wdingding0924-ux`) or Yoongu Kang (`ygkang-cu`). Do not list an agent on the pull request.
 
-When the task is complete, add one entry to `docs/ai-usage.md` using the `cvnstack-ai-documentation` skill. The shared policy for every coding agent is `AGENTS.md`.
+When the task is complete, append one entry at the end of `docs/ai-usage.md` using the `cvnstack-ai-documentation` skill. Do not edit earlier lines in that file. The shared policy for every coding agent is `AGENTS.md`.

@@ -2,9 +2,11 @@
 
 # AI usage
 
-This is the only AI usage record in the repository. When a task is completed, append one entry under the tool that did the work. A file the model generated or debugged is marked `AI-assisted` in its header. Prompts and token totals are not copied into that file.
+This is the only AI usage record in the repository. When a task is completed, append one entry at the end of this file. Do not edit, delete, reorder, or reformat any earlier line, including the tool tables. A file the model generated or debugged is marked `AI-assisted` in its header. Prompts and token totals are not copied into that file.
 
-Token totals come from the product's usage screen. If the screen has not been read, write **not yet read from Cursor usage** and do not estimate. When it is read, replace that phrase with the number and the date.
+Token totals come from the product's usage screen. If the screen has not been read, write `not yet read from the product usage screen` in the new entry and do not estimate. Do not go back and replace an earlier phrase. A later reading is a new entry appended at the end.
+
+Git merges this file with the union driver, so two entries appended at the end both stay. Add only at the end.
 
 ## Cursor
 
@@ -541,3 +543,21 @@ Token totals come from the product's usage screen. If the screen has not been re
   > restart mocked client....I wanna see if those tested data persist for this client in cloud.... if not please fix accordingly
 
 - **Follow-up files.** `mocked_client/src/main/java/com/cvnstack/mockedclient/StandBookStore.java`, `mocked_client/src/main/java/com/cvnstack/mockedclient/RestaurantServer.java`, `mocked_client/src/main/java/com/cvnstack/mockedclient/CommandRunner.java`, `mocked_client/src/test/java/com/cvnstack/mockedclient/RestaurantServerTest.java`, `mocked_client/src/main/resources/static/app.js`, `mocked_client/README.md`, this file.
+
+### Pull request 54 — Rebase client instance, visualizer header, append-only usage log
+
+- **Completed.** 2026-11-25
+- **Tool.** Cursor
+- **Source.** https://cursor.com
+- **Model.** Grok 4.7
+- **Purpose.** Replay the client-instance and mocked-client commits onto current main, send `X-Client-Instance` from the visualizer, and make the AI usage log append-only so later tasks do not rewrite earlier lines.
+- **Prompt.**
+
+  > address comments in https://github.com/zk2343-lab/cvnstack/pull/54
+  >
+  > 1. clean up all closed feature branches
+  > 2. do a rebase on mainline for this X-client-instance (start fresh if too complex) and resolve conflict.
+  > 3. We need to modify ai-usage.md guideline to be append only. so there will be less conflict to resolve
+
+- **Files.** `src/main/resources/static/visualizer.js`, `docs/ai-usage.md`, `AGENTS.md`, `.gitattributes`, `.agents/skills/cvnstack-ai-documentation/SKILL.md`, `.agents/skills/cvnstack-ai-documentation/reference.md`, `.agents/skills/cvnstack-code-change/SKILL.md`
+- **Tokens.** not yet read from the product usage screen.
