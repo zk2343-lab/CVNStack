@@ -390,6 +390,10 @@ that another request has already claimed. `StoreConsistencyTest` runs both store
 | Event broker + webhook worker | **No** event broker in this iteration |
 | Empty PATCH as `MALFORMED_REQUEST` | **400** `INVALID_REQUEST` |
 
+## Restaurant client (issue #41)
+
+`mocked_client/` is a separate host-stand application. It calls this service over HTTP and is not a page inside the waitlist process. Build, the local port script, and the mode that boots the stand against the hosted service are in [mocked_client/README.md](mocked_client/README.md). The two-machine checklist is [docs/e2e-checklist.md](docs/e2e-checklist.md).
+
 ## AI-assisted work
 
 Coding agents follow [AGENTS.md](AGENTS.md) and `.agents/skills/`. Usage is recorded in [docs/ai-usage.md](docs/ai-usage.md). A file a model wrote or debugged is marked `AI-assisted` in its header.

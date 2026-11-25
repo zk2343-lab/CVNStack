@@ -496,3 +496,48 @@ Token totals come from the product's usage screen. If the screen has not been re
 
 - **Files.** `src/main/resources/db/migration/V2__client_instance.sql`, `src/main/java/com/cvnstack/controller/ClientInstanceHeader.java`, `src/main/java/com/cvnstack/model/Waitlist.java`, `src/main/java/com/cvnstack/model/Entry.java`, mutating controllers and create/query services, PostgreSQL and Redis adapters, response DTOs, tests, `README.md`, this file.
 - **Tokens.** not yet read from the product usage screen.
+
+### Issue 41 — Restaurant mocked client and cloud checklist
+
+- **Completed.** 2026-11-25
+- **Purpose.** Add a separate restaurant host stand under `mocked_client/` that calls the waitlist HTTP API, with a direct local-port script and a local server mode aimed at the hosted service.
+- **Prompt.**
+
+  > can you work on https://github.com/zk2343-lab/CVNStack/issues/41
+  >
+  > This should be a sperate folder called mocked_client. a seprate restauarnt application that will use wailist mangement service APIs (borrow idea from the visualizer we have on how to use it). However, the key call out is that our service will be hosted on GCP and calling in example, http://waitlist-management-service-5khm3u4xr0cvdjxqkvcf52uv.34-70-77-140.sslip.io/health
+  >
+  > for local testing, have a script that can communicate directly with port. but also add a mode which i can local boostrap this mocked client server to call GCP hosted service for usage and testing
+
+- **Files.** `mocked_client/`, `docs/e2e-checklist.md`, `README.md`, this file.
+- **Tokens.** not yet read from the product usage screen.
+- **Follow-up.** 2026-11-25. Restyled the host stand as The Marlowe's book: guest tickets, party size, quoted wait, and a table-ready step.
+- **Follow-up prompt.**
+
+  > i want the mocked client more sophisticated, more looking like an actual restaurnatn wailist application
+
+- **Follow-up files.** `mocked_client/src/main/resources/static/index.html`, `mocked_client/src/main/resources/static/app.css`, `mocked_client/src/main/resources/static/app.js`, this file.
+- **Follow-up.** 2026-11-25. Added a Local / Cloud toggle that switches the upstream and reloads the book stored for that service.
+- **Follow-up prompt.**
+
+  > can you add a toggle in mocked client (so we can switch exuection in testing agaisnt local vs. cloud server- referesh page data accordingly)
+
+- **Follow-up files.** `mocked_client/src/main/java/com/cvnstack/mockedclient/RestaurantServer.java`, `mocked_client/src/test/java/com/cvnstack/mockedclient/RestaurantServerTest.java`, `mocked_client/src/main/resources/static/index.html`, `mocked_client/src/main/resources/static/app.css`, `mocked_client/src/main/resources/static/app.js`, `mocked_client/README.md`, this file.
+- **Follow-up.** 2026-11-25. The stand keeps several rooms per service, switches the open book, and can take a room off the stand.
+- **Follow-up prompt.**
+
+  > think the mocked server can toggle/create/remove between different rooms?
+
+- **Follow-up files.** `mocked_client/src/main/resources/static/index.html`, `mocked_client/src/main/resources/static/app.css`, `mocked_client/src/main/resources/static/app.js`, this file.
+- **Follow-up.** 2026-11-25. Reorganized the host stand layout: top bar, room tabs, room summary, walk-in form beside the waiting list, history, and connection footer.
+- **Follow-up prompt.**
+
+  > organize the layout more neat and modern and organized structured
+
+- **Follow-up files.** `mocked_client/src/main/resources/static/index.html`, `mocked_client/src/main/resources/static/app.css`, `mocked_client/src/main/resources/static/app.js`, this file.
+- **Follow-up.** 2026-11-25. Rooms and guest details now persist on the stand in `~/.cvnstack/mocked-client-book-<mode>.json` instead of only in browser storage.
+- **Follow-up prompt.**
+
+  > restart mocked client....I wanna see if those tested data persist for this client in cloud.... if not please fix accordingly
+
+- **Follow-up files.** `mocked_client/src/main/java/com/cvnstack/mockedclient/StandBookStore.java`, `mocked_client/src/main/java/com/cvnstack/mockedclient/RestaurantServer.java`, `mocked_client/src/main/java/com/cvnstack/mockedclient/CommandRunner.java`, `mocked_client/src/test/java/com/cvnstack/mockedclient/RestaurantServerTest.java`, `mocked_client/src/main/resources/static/app.js`, `mocked_client/README.md`, this file.
