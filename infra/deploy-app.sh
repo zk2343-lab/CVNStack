@@ -40,7 +40,7 @@ for _ in $(seq 1 60); do
 done
 sudo docker info >/dev/null
 sudo systemctl cat cvnstack.service >/dev/null
-sudo systemctl start cvnstack.service
+sudo systemctl restart cvnstack.service
 sudo docker compose -f /opt/cvnstack/docker-compose.yml ps
 EOF
 )"
