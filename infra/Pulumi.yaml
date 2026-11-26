@@ -1,0 +1,8 @@
+# AI-assisted.
+# Pulumi project for the CVNStack Compute Engine starter.
+name: cvnstack
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: One Compute Engine instance running the CVNStack Compose stack.

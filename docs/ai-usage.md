@@ -474,6 +474,87 @@ Git merges this file with the union driver, so two entries appended at the end b
 
 - **GCP follow-up verification.** `mvn test` (JDK 21): 263 tests, 0 failures. Checkstyle: 0 violations. Rebuilt image `Arch=amd64`, entrypoint `java -XX:MaxRAMPercentage=75.0 -jar /app/app.jar`, contains `postgres-socket-factory-1.31.1.jar`. `VERIFY_STORES=true`. Container became healthy, `GET /health` returned 200, and a waitlist plus entry wrote both stores. Stopped with `docker compose down -v`.
 
+## Antigravity
+
+| | |
+| --- | --- |
+| Tool | Google Antigravity |
+| Source | https://antigravity.google |
+| Model | Gemini (managed by Antigravity) |
+| Token total | **26,805,609** (uncached input 1,994,591 + output 98,155 + cache read 24,712,863), summed from local Antigravity session logs on 2026-11-25 (covers Iteration 2 planning, PR #52-#55 reviews, GCP CLI setup, and issue #42). |
+
+### Issue 42 - GCP project, APIs, IAM, VPC, and connector
+
+- **Completed.** 2026-11-25
+- **Purpose.** Enable the GCP APIs needed for managed stores and Cloud Run on project `cvnstack`, create the Serverless VPC Access connector `cvnstack-connector` in `us-central1`, and document the project, APIs, VPC, connector, and IAM status in `docs/gcp.md`.
+- **Prompt.**
+
+  > Check my assigned Iteration 2 issues, inspect the `cvnstack` GCP project for issue #42, enable the required GCP APIs, create the Serverless VPC Access connector in `us-central1`, and document the project, region, APIs, VPC connector, and IAM status in `docs/gcp.md`.
+
+- **Files.** `docs/gcp.md`, this file.
+- **Verification.** `gcloud services list --enabled --project=cvnstack` confirmed all required APIs are `ENABLED`; `gcloud compute networks vpc-access connectors describe cvnstack-connector --project=cvnstack --region=us-central1` confirmed `state: READY` on network `cvnstack` with CIDR `10.8.0.0/28`.
+- **Tokens.** Included in the Antigravity total above (measured local session snapshot before PR submission).
+
+### Compute Engine starter
+
+- **Completed.** 2026-11-24
+- **Purpose.** Add a Pulumi program that defines one Compute Engine VM for the existing Compose stack. CDK for Terraform is archived, so Pulumi is the CDK-style tool.
+- **Prompt.**
+
+  > can you start a bare bone CDK repo for this application, so we can use that manage infra to deploy to GCP? And for starter, lets have one comupte instance to serve CVNStack containerized solution
+
+- **Files.** `infra/index.ts`, `infra/startup.sh`, `infra/deploy-app.sh`, `infra/package.json`, `infra/package-lock.json`, `infra/tsconfig.json`, `infra/Pulumi.yaml`, `infra/Pulumi.dev.yaml`, `infra/README.md`, `infra/.gitignore`, `.gitignore`, `README.md`, this file.
+- **Verification.** `tsc --noEmit` passed. `pulumi preview` for stack `dev` plans 13 creates, including one `e2-medium` instance named `cvnstack` in `us-central1-a`. The instance was not created.
+- **Tokens.** not yet read from the product usage screen.
+- **Network follow-up.** 2026-11-24: the project denies external IPs on VMs, so the VM stays private, Cloud NAT provides outbound access, and a regional network load balancer publishes TCP 8080.
+- **Network follow-up prompt.**
+
+  > please have the minmal network setup as well, so that APIs can be accessible through curl.
+
+- **Network follow-up files.** `infra/index.ts`, `infra/deploy-app.sh`, `infra/README.md`, `README.md`, this file.
+- **Network follow-up verification.** `pulumi up` created the private VM, Cloud NAT, and forwarding rule `34.70.77.140:8080`. `curl http://34.70.77.140:8080/health` returned 200 `{"status":"UP"}`. `POST /waitlists` returned 200 with id `d5562400-8bff-4943-be47-4ecd21627468`, and `GET` of that id returned the same waitlist.
+- **Network follow-up tokens.** not yet read from the product usage screen.
+- **Site-name follow-up.** 2026-11-24: free sslip.io hostname with random suffix, port 80 forwarding, and host redirect from 80 to 8080.
+- **Site-name follow-up prompt.**
+
+  > can we have a site name, instead of  http://34.70.77.140:8000? something like wailtlist management service. just get one of the free one, it can be abiratray long with random generated suffix
+
+- **Site-name follow-up files.** `infra/index.ts`, `infra/startup.sh`, `infra/Pulumi.dev.yaml`, `infra/README.md`, `README.md`, this file.
+- **Site-name follow-up verification.** Site name `waitlist-management-service-eiei3xv2.34-70-77-140.sslip.io` resolves to `34.70.77.140`. `curl http://…/health` returned 200 `{"status":"UP"}`. `POST /waitlists` created `site-name-check`.
+- **Site-name follow-up tokens.** not yet read from the product usage screen.
+- **Longer suffix.** 2026-11-24: replaced the short suffix with free sslip.io hostname `waitlist-management-service-5khm3u4xr0cvdjxqkvcf52uv.34-70-77-140.sslip.io`. Health check returned 200.
+
+### Issue 39 — Initial GCP infra deploy (Compute Engine)
+
+- **Completed.** 2026-11-24
+- **Purpose.** Open a pull request for the Pulumi Compute Engine starter, public load balancer, and free sslip.io site name, and grant teammates access to the GCP project.
+- **Prompt.**
+
+  > can you submit PR https://github.com/zk2343-lab/CVNStack/issues/39
+  >
+  > the initial CDK and service deploy change is for this task.
+  >
+  > Then can finally invte dw3258@columbia.edu and  yk3193@columbia.edu to my application
+
+- **Files.** `infra/`, `.gitignore`, `README.md`, this file.
+- **Tokens.** not yet read from the product usage screen.
+
+### Pull request 53 — Keep both AI usage records
+
+- **Completed.** 2026-11-25
+- **Tool.** Cursor
+- **Source.** https://cursor.com
+- **Model.** Grok 4.7
+- **Purpose.** Resolve the `docs/ai-usage.md` conflict on pull request 53 by keeping the main Antigravity and issue 42 record and the Compute Engine record, then merge the pull request.
+- **Prompt.**
+
+  > resolve conflict inline with web editor https://github.com/zk2343-lab/cvnstack/pull/53
+  >
+  > merge and close the pull request
+
+- **Files.** `docs/ai-usage.md`
+- **Tokens.** not yet read from the product usage screen.
+
 ### Issue 40 — Client instance identity via X-Client-Instance
 
 - **Completed.** 2026-11-24
@@ -560,4 +641,21 @@ Git merges this file with the union driver, so two entries appended at the end b
   > 3. We need to modify ai-usage.md guideline to be append only. so there will be less conflict to resolve
 
 - **Files.** `src/main/resources/static/visualizer.js`, `docs/ai-usage.md`, `AGENTS.md`, `.gitattributes`, `.agents/skills/cvnstack-ai-documentation/SKILL.md`, `.agents/skills/cvnstack-ai-documentation/reference.md`, `.agents/skills/cvnstack-code-change/SKILL.md`
+- **Tokens.** not yet read from the product usage screen.
+
+
+### Pull request 54 — Keep both AI usage records
+
+- **Completed.** 2026-11-25
+- **Tool.** Cursor
+- **Source.** https://cursor.com
+- **Model.** Grok 4.7
+- **Purpose.** Resolve the `docs/ai-usage.md` conflict on pull request 54 by keeping the records already on main and the issue 40 and 41 records, then merge the pull request.
+- **Prompt.**
+
+  > https://github.com/zk2343-lab/cvnstack/pull/54
+  >
+  > resolve thids too
+
+- **Files.** `docs/ai-usage.md`
 - **Tokens.** not yet read from the product usage screen.
