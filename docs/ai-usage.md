@@ -659,3 +659,18 @@ Git merges this file with the union driver, so two entries appended at the end b
 
 - **Files.** `docs/ai-usage.md`
 - **Tokens.** not yet read from the product usage screen.
+
+### Issue 44 - Onboard Memorystore Redis cache
+
+- **Completed.** 2026-11-26
+- **Tool.** Google Antigravity
+- **Source.** https://antigravity.google
+- **Model.** Gemini (managed by Antigravity)
+- **Purpose.** Provision the Memorystore for Redis instance `cvnstack-redis` on the `cvnstack` VPC in `us-central1` and document its private host, port, and existing `REDIS_HOST` / `REDIS_PORT` configuration keys in `docs/gcp.md`.
+- **Prompt.**
+
+  > Provision Memorystore for Redis on the `cvnstack` VPC for issue #44, record the Redis host, port, and app configuration keys in `docs/gcp.md`, and prepare the PR.
+
+- **Files.** `docs/gcp.md`, this file.
+- **Verification.** `gcloud redis instances describe cvnstack-redis --project=cvnstack --region=us-central1` confirmed `state: READY`, `host: 10.63.253.187`, `port: 6379`, `REDIS_7_2`, `BASIC`, `1 GB` on `projects/cvnstack/global/networks/cvnstack`.
+- **Tokens.** **13,490,507** incremental tokens since the Issue 42 snapshot (uncached input 808,280 + output 26,301 + cache read 12,655,926; cumulative local Antigravity session total 40,296,116 on 2026-11-26).
