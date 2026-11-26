@@ -17,3 +17,8 @@ target/
 
 # Local editor session state. Shared skills live in .agents/skills.
 .cursor/
+
+# Pulumi program dependencies and local state
+infra/node_modules/
+infra/bin/
+infra/.pulumi/

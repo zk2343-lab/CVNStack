@@ -242,6 +242,15 @@ jdbc:postgresql:///cvnstack?cloudSqlInstance=PROJECT:REGION:INSTANCE&socketFacto
 the password from Secret Manager. Memorystore still uses `REDIS_HOST` and
 `REDIS_PORT`.
 
+### Compute Engine starter
+
+`infra/` is a Pulumi program that creates one Compute Engine VM and runs this
+Compose stack on it. CDK for Terraform is archived, so Pulumi is the CDK-style
+tool used here. The VM has no public address. Curl reaches the free
+[sslip.io](https://sslip.io) site name on port `80` through a regional load
+balancer. PostgreSQL and Redis stay on the VM. Commands are in
+[`infra/README.md`](infra/README.md).
+
 ## Domain rules (MVP)
 
 - Priority is an integer **1–5**. **5 is most urgent.** Default is **1**.
