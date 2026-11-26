@@ -17,7 +17,7 @@ Header comment on every new type, tests included: one sentence of purpose.
 Two marks, and nothing else.
 
 1. On each file you generate or debug, including tests, add `AI-assisted` to the existing header comment. Do not add the tool name, the prompt, or a token count to the file.
-2. When the task is completed, append one entry to `docs/ai-usage.md`. Include the tool, where it came from, what it was used for, the prompt, the files, and the token total. If the usage screen was not read, write `not yet read from the product usage screen`. Never invent a number.
+2. When the task is completed, append one entry at the end of `docs/ai-usage.md`. Do not edit, delete, reorder, or reformat any earlier line in that file. Include the tool, where it came from, what it was used for, the prompt, the files, and the token total. If the usage screen was not read, write `not yet read from the product usage screen`. Never invent a number. Never replace an older token line. A later reading is a new entry appended at the end.
 
 Do not open a second usage document.
 

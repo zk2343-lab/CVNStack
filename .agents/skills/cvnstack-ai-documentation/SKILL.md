@@ -19,7 +19,7 @@ On every file you generate or debug, tests included, add `AI-assisted` to the he
 
 ## When the task is complete
 
-Append one entry to `docs/ai-usage.md` for that task. Name the product that actually ran (Cursor, GitHub Copilot, or another). One entry per completed task, under that product's section. Do not write the entry for work still in progress. Do not create another usage file.
+Append one entry at the end of `docs/ai-usage.md` for that task. Do not edit, delete, reorder, or reformat any earlier line. Name the product that actually ran (Cursor, GitHub Copilot, or another) inside the new entry. One entry per completed task. Do not write the entry for work still in progress. Do not create another usage file. Do not replace an older token line. A later reading is a new entry appended at the end.
 
 ## Git and GitHub identity
 

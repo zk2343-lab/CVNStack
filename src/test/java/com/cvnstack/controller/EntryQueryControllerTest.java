@@ -67,6 +67,7 @@ class EntryQueryControllerTest {
         .body("priority", equalTo(1))
         .body("position", equalTo(2))
         .body("estimatedWaitTimeMinutes", equalTo(5))
+        .body("clientInstance", equalTo("test-instance"))
         .extract().asString();
 
     given().port(port)

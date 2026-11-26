@@ -1,6 +1,6 @@
 package com.cvnstack.controller;
 
-import static io.restassured.RestAssured.given;
+import static com.cvnstack.ClientInstanceRequests.givenClient;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -101,7 +101,7 @@ class ReadPathApiTest {
     Entry called = addEntry("Carol", 3, T0.plusSeconds(2));
     storage.callEntryIfWaiting(waitlist.id(), called.id(), Instant.now());
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}", waitlist.id())
         .then().statusCode(200)
         .body("id", equalTo(waitlist.id()))
@@ -118,7 +118,7 @@ class ReadPathApiTest {
 
   @Test
   void getWaitlistMissingReturns404() {
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}", UUID.randomUUID().toString())
         .then().statusCode(404)
         .body("error", equalTo("NOT_FOUND"))
@@ -127,7 +127,7 @@ class ReadPathApiTest {
 
   @Test
   void getWaitlistInvalidIdReturns400() {
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}", "invalid-id")
         .then().statusCode(400)
         .body("error", equalTo("INVALID_REQUEST"));
@@ -139,7 +139,7 @@ class ReadPathApiTest {
     Entry normal = addEntry("Desktop", Entry.DEFAULT_PRIORITY, T0);
     Entry urgent = addEntry("ROBOT", 5, T0.plusSeconds(1));
 
-    String firstResponse = given().port(port)
+    String firstResponse = givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), normal.id())
         .then().statusCode(200)
         .body("waitlistId", equalTo(waitlist.id()))
@@ -150,12 +150,12 @@ class ReadPathApiTest {
         .body("estimatedWaitTimeMinutes", equalTo(5))
         .extract().asString();
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), normal.id())
         .then().statusCode(200)
         .body(equalTo(firstResponse));
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), urgent.id())
         .then().statusCode(200)
         .body("entryId", equalTo(urgent.id()))
@@ -173,7 +173,7 @@ class ReadPathApiTest {
         UUID.randomUUID().toString(), waitlist.id(), "Desktop", 1, status,
         T0, T0.plusSeconds(60)));
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), entry.id())
         .then().statusCode(200)
         .body("status", equalTo(status.name()))
@@ -185,7 +185,7 @@ class ReadPathApiTest {
 
   @Test
   void getMissingWaitlist() {
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}",
             UUID.randomUUID().toString(), UUID.randomUUID().toString())
         .then().statusCode(404)
@@ -194,7 +194,7 @@ class ReadPathApiTest {
 
   @Test
   void getMissingEntry() {
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}",
             waitlist.id(), UUID.randomUUID().toString())
         .then().statusCode(404)
@@ -207,7 +207,7 @@ class ReadPathApiTest {
     Waitlist other = storage.saveWaitlist(new Waitlist(
         UUID.randomUUID().toString(), "Other", 10, 5));
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", other.id(), entry.id())
         .then().statusCode(404)
         .body("error", equalTo("NOT_FOUND"));
@@ -217,13 +217,13 @@ class ReadPathApiTest {
 
   @Test
   void getEntryWithInvalidIds() {
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}",
             "invalid-id", UUID.randomUUID().toString())
         .then().statusCode(400)
         .body("error", equalTo("INVALID_REQUEST"));
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), "invalid-id")
         .then().statusCode(400)
         .body("error", equalTo("INVALID_REQUEST"));
@@ -241,7 +241,7 @@ class ReadPathApiTest {
     assertEquals(Optional.of(List.of(urgent.id(), normal.id())),
         cache.findWaitingOrder(waitlist.id()));
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/{id}/serve-next", waitlist.id())
         .then().statusCode(200)
         .body("waitlistId", equalTo(waitlist.id()))
@@ -260,7 +260,7 @@ class ReadPathApiTest {
         cache.findEntry(waitlist.id(), urgent.id()).orElseThrow().status());
     assertEquals(Optional.of(normal), cache.findEntry(waitlist.id(), normal.id()));
 
-    given().port(port)
+    givenClient(port)
         .when().get("/waitlists/{id}/entries/{entryId}", waitlist.id(), normal.id())
         .then().statusCode(200)
         .body("position", equalTo(1))
@@ -272,17 +272,17 @@ class ReadPathApiTest {
     Entry late = addEntry("Late", 3, T0.plusSeconds(1));
     Entry early = addEntry("Early", 3, T0);
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/{id}/serve-next", waitlist.id())
         .then().statusCode(200)
         .body("entryId", equalTo(early.id()));
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/{id}/serve-next", waitlist.id())
         .then().statusCode(200)
         .body("entryId", equalTo(late.id()));
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/{id}/serve-next", waitlist.id())
         .then().statusCode(204)
         .body(equalTo(""));
@@ -298,7 +298,7 @@ class ReadPathApiTest {
   void serveNextOnEmptyWaitlist() {
     cache.replaceWaitingOrder(waitlist.id(), List.of());
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/{id}/serve-next", waitlist.id())
         .then().statusCode(204)
         .body(equalTo(""));
@@ -309,7 +309,7 @@ class ReadPathApiTest {
 
   @Test
   void serveNextOnMissingWaitlist() {
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/{id}/serve-next", UUID.randomUUID().toString())
         .then().statusCode(404)
         .body("error", equalTo("NOT_FOUND"));
@@ -317,7 +317,7 @@ class ReadPathApiTest {
 
   @Test
   void serveNextWithInvalidId() {
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/{id}/serve-next", "invalid-id")
         .then().statusCode(400)
         .body("error", equalTo("INVALID_REQUEST"));

@@ -1,6 +1,6 @@
 package com.cvnstack.controller;
 
-import static io.restassured.RestAssured.given;
+import static com.cvnstack.ClientInstanceRequests.givenClient;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -39,7 +39,7 @@ class DeleteEntryControllerTest {
     existingWaitlist();
     when(storage.deleteEntry("wl-1", "e-1")).thenReturn(true);
 
-    given().port(port).when().delete("/waitlists/wl-1/entries/e-1")
+    givenClient(port).when().delete("/waitlists/wl-1/entries/e-1")
         .then().statusCode(200)
         .body("message", equalTo("Entry successfully removed"))
         .body("entryId", equalTo("e-1"))
@@ -54,7 +54,7 @@ class DeleteEntryControllerTest {
   void unknownWaitlistReturns404WithoutDelete() {
     when(storage.findWaitlistById("missing")).thenReturn(Optional.empty());
 
-    given().port(port).when().delete("/waitlists/missing/entries/e-1")
+    givenClient(port).when().delete("/waitlists/missing/entries/e-1")
         .then().statusCode(404)
         .body("error", equalTo("NOT_FOUND"))
         .body("message", equalTo("Waitlist does not exist"));
@@ -67,7 +67,7 @@ class DeleteEntryControllerTest {
     existingWaitlist();
     when(storage.deleteEntry("wl-1", "missing")).thenReturn(false);
 
-    given().port(port).when().delete("/waitlists/wl-1/entries/missing")
+    givenClient(port).when().delete("/waitlists/wl-1/entries/missing")
         .then().statusCode(404)
         .body("error", equalTo("NOT_FOUND"))
         .body("message", equalTo("Entry does not exist"));
@@ -80,9 +80,9 @@ class DeleteEntryControllerTest {
     existingWaitlist();
     when(storage.deleteEntry("wl-1", "e-1")).thenReturn(true, false);
 
-    given().port(port).when().delete("/waitlists/wl-1/entries/e-1")
+    givenClient(port).when().delete("/waitlists/wl-1/entries/e-1")
         .then().statusCode(200);
-    given().port(port).when().delete("/waitlists/wl-1/entries/e-1")
+    givenClient(port).when().delete("/waitlists/wl-1/entries/e-1")
         .then().statusCode(404)
         .body("error", equalTo("NOT_FOUND"))
         .body("message", equalTo("Entry does not exist"));

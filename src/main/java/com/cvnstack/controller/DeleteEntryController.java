@@ -5,6 +5,7 @@ import com.cvnstack.service.DeleteEntryService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -29,13 +30,17 @@ public class DeleteEntryController {
   /**
    * Removes an entry identified by the path variables.
    *
+   * @param clientInstance calling client instance
    * @param waitlistId owning waitlist id
    * @param entryId entry to remove
    * @return HTTP 200 with removal confirmation
    */
   @DeleteMapping("/waitlists/{waitlistId}/entries/{entryId}")
   public ResponseEntity<DeleteEntryResponse> deleteEntry(
-      @PathVariable("waitlistId") String waitlistId, @PathVariable("entryId") String entryId) {
+      @RequestHeader(value = ClientInstanceHeader.NAME, required = false) String clientInstance,
+      @PathVariable("waitlistId") String waitlistId,
+      @PathVariable("entryId") String entryId) {
+    ClientInstanceHeader.require(clientInstance);
     return ResponseEntity.ok(service.deleteEntry(waitlistId, entryId));
   }
 }

@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -31,13 +32,17 @@ public class CreateEntryController {
   /**
    * Adds a waiting entry and returns its waiting information.
    *
+   * @param clientInstance creating client instance
    * @param waitlistId owning waitlist id
    * @param request entry name and optional priority
    * @return HTTP 200 with the created entry
    */
   @PostMapping("/waitlists/{waitlistId}/entries")
   public ResponseEntity<EntryResponse> createEntry(
-      @PathVariable("waitlistId") String waitlistId, @RequestBody CreateEntryRequest request) {
-    return ResponseEntity.ok(service.createEntry(waitlistId, request));
+      @RequestHeader(value = ClientInstanceHeader.NAME, required = false) String clientInstance,
+      @PathVariable("waitlistId") String waitlistId,
+      @RequestBody CreateEntryRequest request) {
+    return ResponseEntity.ok(service.createEntry(
+        waitlistId, request, ClientInstanceHeader.require(clientInstance)));
   }
 }

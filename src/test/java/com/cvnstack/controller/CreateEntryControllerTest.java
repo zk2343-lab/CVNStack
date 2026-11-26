@@ -1,6 +1,6 @@
 package com.cvnstack.controller;
 
-import static io.restassured.RestAssured.given;
+import static com.cvnstack.ClientInstanceRequests.givenClient;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -72,7 +72,7 @@ class CreateEntryControllerTest {
     Entry older = new Entry("older", "wl-1", "Bob", 5, EntryStatus.WAITING, Instant.EPOCH);
     when(storage.findEntriesByWaitlistId("wl-1"))
         .thenAnswer(call -> List.of(saved.get(), older));
-    String id = given().port(port).contentType("application/json").body(body)
+    String id = givenClient(port).contentType("application/json").body(body)
         .when().post("/waitlists/wl-1/entries")
         .then().statusCode(200)
         .body("waitlistId", equalTo("wl-1"))
@@ -80,7 +80,8 @@ class CreateEntryControllerTest {
         .body("priority", equalTo(priority))
         .body("position", equalTo(2))
         .body("estimatedWaitTimeMinutes", equalTo(5))
-        .body("size()", equalTo(6))
+        .body("clientInstance", equalTo("cli-1"))
+        .body("size()", equalTo(7))
         .extract().path("entryId");
     assertNotNull(UUID.fromString(id));
     assertEquals(saved.get().id(), id);
@@ -92,7 +93,7 @@ class CreateEntryControllerTest {
   @ParameterizedTest
   @ValueSource(strings = {"4.5", "5.9", "4.0", "4e0"})
   void floatingPointPriorityReturns400BeforePersistence(String priority) {
-    given().port(port).contentType("application/json")
+    givenClient(port).contentType("application/json")
         .body("{\"name\":\"Alice\",\"priority\":" + priority + "}")
         .when().post("/waitlists/wl-1/entries")
         .then().statusCode(400);
@@ -103,7 +104,7 @@ class CreateEntryControllerTest {
   @ValueSource(strings = {"{}", "{\"name\":null}", "{\"name\":\" \"}",
       "{\"name\":\"Alice\",\"priority\":0}", "{\"name\":\"Alice\",\"priority\":6}"})
   void invalidFieldsReturn400WithoutStorageAccess(String body) {
-    given().port(port).contentType("application/json").body(body)
+    givenClient(port).contentType("application/json").body(body)
         .when().post("/waitlists/wl-1/entries")
         .then().statusCode(400).body("error", equalTo("INVALID_REQUEST"));
     verifyNoInteractions(storage, cache);
@@ -114,7 +115,7 @@ class CreateEntryControllerTest {
       "{\"name\":\"Alice\",\"priority\":\"invalid\"}",
       "{\"name\":{},\"priority\":1}", "{\"name\":\"Alice\",\"priority\":{}}"})
   void unreadableBodyReturns400WithoutStorageAccess(String body) {
-    given().port(port).contentType("application/json").body(body)
+    givenClient(port).contentType("application/json").body(body)
         .when().post("/waitlists/wl-1/entries")
         .then().statusCode(400);
     verifyNoInteractions(storage, cache);
@@ -123,7 +124,7 @@ class CreateEntryControllerTest {
   @Test
   void unknownWaitlistReturns404WithoutInsert() {
     when(storage.findWaitlistById("wl-1")).thenReturn(Optional.empty());
-    given().port(port).contentType("application/json").body("{\"name\":\"Alice\"}")
+    givenClient(port).contentType("application/json").body("{\"name\":\"Alice\"}")
         .when().post("/waitlists/wl-1/entries")
         .then().statusCode(404).body("error", equalTo("NOT_FOUND"));
     verify(storage, never()).insertEntryIfCapacityAvailable(any());
@@ -135,7 +136,7 @@ class CreateEntryControllerTest {
     existingWaitlist();
     when(storage.insertEntryIfCapacityAvailable(any()))
         .thenThrow(ApiException.capacityExceeded("Waitlist is full"));
-    given().port(port).contentType("application/json").body("{\"name\":\"Alice\"}")
+    givenClient(port).contentType("application/json").body("{\"name\":\"Alice\"}")
         .when().post("/waitlists/wl-1/entries")
         .then().statusCode(422).body("error", equalTo("CAPACITY_EXCEEDED"));
     verifyNoInteractions(cache);

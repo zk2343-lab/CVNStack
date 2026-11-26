@@ -1,6 +1,6 @@
 package com.cvnstack.controller;
 
-import static io.restassured.RestAssured.given;
+import static com.cvnstack.ClientInstanceRequests.givenClient;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -58,13 +58,14 @@ class ServeNextControllerTest {
     givenEntries(List.of(first));
     givenClaimSucceeds(first);
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/wl-1/serve-next")
         .then().statusCode(200)
         .body("waitlistId", equalTo("wl-1"))
         .body("entryId", equalTo("e1"))
         .body("status", equalTo("CALLED"))
-        .body("priority", equalTo(5));
+        .body("priority", equalTo(5))
+        .body("clientInstance", equalTo("test-instance"));
 
     verify(cache).tryAcquireServeLock("wl-1");
     verify(cache).putEntry(any(Entry.class));
@@ -75,7 +76,7 @@ class ServeNextControllerTest {
   void emptyWaitlistReturns204WithoutBody() {
     givenEntries(List.of());
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/wl-1/serve-next")
         .then().statusCode(204)
         .body(equalTo(""));
@@ -88,7 +89,7 @@ class ServeNextControllerTest {
   void missingWaitlistReturns404() {
     when(storage.findWaitlistById("missing")).thenReturn(Optional.empty());
 
-    given().port(port)
+    givenClient(port)
         .when().post("/waitlists/missing/serve-next")
         .then().statusCode(404)
         .body("error", equalTo("NOT_FOUND"))
@@ -110,11 +111,11 @@ class ServeNextControllerTest {
     givenClaimSucceeds(first);
     givenClaimSucceeds(second);
 
-    given().port(port).when().post("/waitlists/wl-1/serve-next")
+    givenClient(port).when().post("/waitlists/wl-1/serve-next")
         .then().statusCode(200).body("entryId", equalTo("e1"));
-    given().port(port).when().post("/waitlists/wl-1/serve-next")
+    givenClient(port).when().post("/waitlists/wl-1/serve-next")
         .then().statusCode(200).body("entryId", equalTo("e2"));
-    given().port(port).when().post("/waitlists/wl-1/serve-next")
+    givenClient(port).when().post("/waitlists/wl-1/serve-next")
         .then().statusCode(204).body(equalTo(""));
 
     verify(cache, times(2)).putEntry(any(Entry.class));

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<!-- AI-assisted. Restaurant host stand that calls the waitlist service through this client. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Marlowe · Host stand</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <div>
+          <p class="mark">The Marlowe</p>
+          <h1>Host stand</h1>
+        </div>
+      </div>
+      <div class="topbar-tools">
+        <span id="health" class="pill dot">Connecting…</span>
+        <div class="segmented" role="group" aria-label="Waitlist service">
+          <button id="useLocal" type="button" aria-pressed="false">Local</button>
+          <button id="useCloud" type="button" aria-pressed="false">Cloud</button>
+        </div>
+        <div class="clock">
+          <strong id="clock">—</strong>
+          <span id="today">Tonight</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="page">
+    <section id="welcome" class="welcome">
+      <div class="welcome-head">
+        <p class="kicker">Open the dining room</p>
+        <h2>Start tonight's book</h2>
+        <p class="quiet">
+          Each room is its own waitlist. Parties ahead set the quote:
+          each one adds the minutes you choose.
+        </p>
+      </div>
+      <div class="welcome-grid">
+        <div class="card">
+          <h3>Open a new room</h3>
+          <label>Room name
+            <input id="waitlistName" value="Dining room" autocomplete="off">
+          </label>
+          <div class="pair">
+            <label>Parties we'll take
+              <input id="maxLength" type="number" min="1" value="12">
+            </label>
+            <label>Minutes per party
+              <input id="minutes" type="number" min="1" value="5">
+            </label>
+          </div>
+          <button id="create" class="primary block" type="button">Open room</button>
+        </div>
+        <div class="card">
+          <h3>Join an open room</h3>
+          <p class="quiet small">Paste the book id from another stand.</p>
+          <label>Book id
+            <input id="waitlistId" placeholder="e.g. d0a4b75a-…" autocomplete="off">
+          </label>
+          <button id="join" class="ghost block" type="button">Open that book</button>
+        </div>
+      </div>
+    </section>
+
+    <main id="floor" class="floor" hidden>
+      <nav class="roombar" aria-label="Rooms">
+        <div id="rooms" class="tabs"></div>
+        <button id="showRoomForm" class="ghost small-btn" type="button">+ New room</button>
+      </nav>
+      <div id="roomForm" class="card room-form" hidden>
+        <label>Room name
+          <input id="roomName" placeholder="Bar" autocomplete="off">
+        </label>
+        <label>Parties
+          <input id="roomMax" type="number" min="1" value="12">
+        </label>
+        <label>Minutes
+          <input id="roomMinutes" type="number" min="1" value="5">
+        </label>
+        <button id="addRoom" class="primary" type="button">Open room</button>
+      </div>
+
+      <section class="overview">
+        <div class="overview-title">
+          <p class="kicker">Now serving</p>
+          <h2 id="bookName">Tonight</h2>
+        </div>
+        <div class="stats" aria-label="Tonight's book">
+          <div class="stat">
+            <span>Waiting</span>
+            <strong id="waitingCount">—</strong>
+          </div>
+          <div class="stat">
+            <span>Covers</span>
+            <strong id="coverCount">—</strong>
+          </div>
+          <div class="stat">
+            <span>Next quote</span>
+            <strong id="nextQuote">—</strong>
+          </div>
+        </div>
+      </section>
+
+      <div class="workspace">
+        <aside class="card slip">
+          <div class="card-head">
+            <h3>Add a walk-in</h3>
+          </div>
+          <label>Guest
+            <input id="partyName" placeholder="Alex Rivera" autocomplete="off">
+          </label>
+          <p class="field-label">Party size</p>
+          <div class="sizes" id="sizes">
+            <button type="button" data-size="1">1</button>
+            <button type="button" data-size="2" class="on">2</button>
+            <button type="button" data-size="3">3</button>
+            <button type="button" data-size="4">4</button>
+            <button type="button" data-size="5">5</button>
+            <button type="button" data-size="6">6</button>
+            <button type="button" data-size="8">8</button>
+          </div>
+          <label>Note for the floor
+            <input id="partyNote" placeholder="Window, high chair, birthday" autocomplete="off">
+          </label>
+          <label class="hold">
+            <input id="rush" type="checkbox">
+            <span>
+              <strong>Hold the next table</strong>
+              <small>Celebration, access, or a promise. Quoted first.</small>
+            </span>
+          </label>
+          <button id="checkIn" class="primary block" type="button">Add to the book</button>
+        </aside>
+
+        <section class="book">
+          <div id="readyBanner" class="ready" hidden>
+            <div>
+              <p class="kicker">Table ready</p>
+              <h3 id="readyName">Guest</h3>
+              <p id="readyMeta" class="quiet"></p>
+            </div>
+            <div class="actions">
+              <button id="served" class="primary" type="button">Seat them</button>
+              <button id="cancelled" class="ghost danger" type="button">They left</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h3>Waiting list</h3>
+              <div class="actions">
+                <button id="refresh" class="ghost small-btn" type="button">Refresh</button>
+                <button id="seat" class="primary small-btn" type="button">Call next party</button>
+              </div>
+            </div>
+            <div id="rows" class="tickets"></div>
+          </div>
+
+          <div class="card history">
+            <details id="seatedBlock">
+              <summary>Seated tonight <span id="seatedCount" class="count">0</span></summary>
+              <div id="seated" class="past-list"></div>
+            </details>
+            <details>
+              <summary>Left or no-show <span id="leftCount" class="count">0</span></summary>
+              <div id="left" class="past-list"></div>
+            </details>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <details class="service">
+        <summary>Service connection</summary>
+        <dl>
+          <dt>Service</dt><dd id="mode">…</dd>
+          <dt>Instance</dt><dd><code id="instance">…</code></dd>
+          <dt>Upstream</dt><dd><code id="upstream">…</code></dd>
+        </dl>
+        <pre id="trace">No call yet.</pre>
+      </details>
+    </footer>
+  </div>
+
+  <p id="message" class="toast" role="status">The door is open.</p>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -597,7 +597,10 @@
       }
       card.classList.add("firing");
       showCall(action.method, url, body, "Waiting…");
-      const options = { method: action.method, headers: { Accept: "application/json" } };
+      const options = {
+        method: action.method,
+        headers: { Accept: "application/json", "X-Client-Instance": "visualizer" }
+      };
       if (body !== undefined) {
         options.headers["Content-Type"] = "application/json";
         options.body = JSON.stringify(body);

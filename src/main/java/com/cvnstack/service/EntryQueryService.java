@@ -63,6 +63,6 @@ public class EntryQueryService {
     }
 
     return new EntryResponse(waitlistId, entry.id(), entry.status(), entry.priority(),
-        position, estimatedWaitTimeMinutes);
+        position, estimatedWaitTimeMinutes, entry.clientInstance());
   }
 }

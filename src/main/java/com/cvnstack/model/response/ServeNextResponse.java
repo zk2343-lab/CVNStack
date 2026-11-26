@@ -11,9 +11,11 @@ import com.cvnstack.model.EntryStatus;
  * @param entryId selected entry id
  * @param status selected entry status
  * @param priority selected entry priority
+ * @param clientInstance creating client instance id
  */
 public record ServeNextResponse(
     String waitlistId,
     String entryId,
     EntryStatus status,
-    int priority) {}
+    int priority,
+    String clientInstance) {}

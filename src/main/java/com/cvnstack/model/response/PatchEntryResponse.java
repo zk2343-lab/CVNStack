@@ -15,6 +15,7 @@ import java.time.Instant;
  * @param updatedAt database write timestamp
  * @param position one-based waiting position, or null
  * @param estimatedWaitTimeMinutes waiting estimate, or null
+ * @param clientInstance creating client instance id
  */
 public record PatchEntryResponse(
     String waitlistId,
@@ -23,4 +24,5 @@ public record PatchEntryResponse(
     int priority,
     Instant updatedAt,
     Integer position,
-    Integer estimatedWaitTimeMinutes) {}
+    Integer estimatedWaitTimeMinutes,
+    String clientInstance) {}

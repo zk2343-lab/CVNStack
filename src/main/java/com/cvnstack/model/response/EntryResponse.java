@@ -13,6 +13,7 @@ import com.cvnstack.model.EntryStatus;
  * @param priority urgency tier
  * @param position one-based position, or null when not waiting
  * @param estimatedWaitTimeMinutes wait estimate, or null when not waiting
+ * @param clientInstance creating client instance id
  */
 public record EntryResponse(
     String waitlistId,
@@ -20,4 +21,5 @@ public record EntryResponse(
     EntryStatus status,
     int priority,
     Integer position,
-    Integer estimatedWaitTimeMinutes) {}
+    Integer estimatedWaitTimeMinutes,
+    String clientInstance) {}

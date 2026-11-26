@@ -2,9 +2,11 @@
 
 # AI usage
 
-This is the only AI usage record in the repository. When a task is completed, append one entry under the tool that did the work. A file the model generated or debugged is marked `AI-assisted` in its header. Prompts and token totals are not copied into that file.
+This is the only AI usage record in the repository. When a task is completed, append one entry at the end of this file. Do not edit, delete, reorder, or reformat any earlier line, including the tool tables. A file the model generated or debugged is marked `AI-assisted` in its header. Prompts and token totals are not copied into that file.
 
-Token totals come from the product's usage screen. If the screen has not been read, write **not yet read from Cursor usage** and do not estimate. When it is read, replace that phrase with the number and the date.
+Token totals come from the product's usage screen. If the screen has not been read, write `not yet read from the product usage screen` in the new entry and do not estimate. Do not go back and replace an earlier phrase. A later reading is a new entry appended at the end.
+
+Git merges this file with the union driver, so two entries appended at the end both stay. Add only at the end.
 
 ## Cursor
 
@@ -549,6 +551,111 @@ Token totals come from the product's usage screen. If the screen has not been re
   > resolve conflict inline with web editor https://github.com/zk2343-lab/cvnstack/pull/53
   >
   > merge and close the pull request
+
+- **Files.** `docs/ai-usage.md`
+- **Tokens.** not yet read from the product usage screen.
+
+### Issue 40 — Client instance identity via X-Client-Instance
+
+- **Completed.** 2026-11-24
+- **Purpose.** Require `X-Client-Instance` on mutating waitlist routes, persist it on waitlist and entry rows in PostgreSQL, and return `clientInstance` on reads.
+- **Prompt.**
+
+  > can you work on https://github.com/zk2343-lab/CVNStack/issues/40?
+  >
+  > wonder if there should be some inhouse built-in solution, provided by java springboot
+  > framework (or whatever the proejct built on), or GCP that supporst client registry and
+  > recogniztion of clientId and associated X-Client-Instance.
+  >
+  > Propose before do the work
+  >
+  > where will those clientId info gets stored?
+  >
+  > can you check on the initial guidline to figure out and solidify the requirements from
+  > cleintinstance
+  >
+  > i just want to implment that satisfy minimaim requirements of the homework assignment
+  > on this design. capture X-Client-Instance in headers and to PostgreSQL columns
+
+- **Files.** `src/main/resources/db/migration/V2__client_instance.sql`, `src/main/java/com/cvnstack/controller/ClientInstanceHeader.java`, `src/main/java/com/cvnstack/model/Waitlist.java`, `src/main/java/com/cvnstack/model/Entry.java`, mutating controllers and create/query services, PostgreSQL and Redis adapters, response DTOs, tests, `README.md`, this file.
+- **Tokens.** not yet read from the product usage screen.
+
+### Issue 41 — Restaurant mocked client and cloud checklist
+
+- **Completed.** 2026-11-25
+- **Purpose.** Add a separate restaurant host stand under `mocked_client/` that calls the waitlist HTTP API, with a direct local-port script and a local server mode aimed at the hosted service.
+- **Prompt.**
+
+  > can you work on https://github.com/zk2343-lab/CVNStack/issues/41
+  >
+  > This should be a sperate folder called mocked_client. a seprate restauarnt application that will use wailist mangement service APIs (borrow idea from the visualizer we have on how to use it). However, the key call out is that our service will be hosted on GCP and calling in example, http://waitlist-management-service-5khm3u4xr0cvdjxqkvcf52uv.34-70-77-140.sslip.io/health
+  >
+  > for local testing, have a script that can communicate directly with port. but also add a mode which i can local boostrap this mocked client server to call GCP hosted service for usage and testing
+
+- **Files.** `mocked_client/`, `docs/e2e-checklist.md`, `README.md`, this file.
+- **Tokens.** not yet read from the product usage screen.
+- **Follow-up.** 2026-11-25. Restyled the host stand as The Marlowe's book: guest tickets, party size, quoted wait, and a table-ready step.
+- **Follow-up prompt.**
+
+  > i want the mocked client more sophisticated, more looking like an actual restaurnatn wailist application
+
+- **Follow-up files.** `mocked_client/src/main/resources/static/index.html`, `mocked_client/src/main/resources/static/app.css`, `mocked_client/src/main/resources/static/app.js`, this file.
+- **Follow-up.** 2026-11-25. Added a Local / Cloud toggle that switches the upstream and reloads the book stored for that service.
+- **Follow-up prompt.**
+
+  > can you add a toggle in mocked client (so we can switch exuection in testing agaisnt local vs. cloud server- referesh page data accordingly)
+
+- **Follow-up files.** `mocked_client/src/main/java/com/cvnstack/mockedclient/RestaurantServer.java`, `mocked_client/src/test/java/com/cvnstack/mockedclient/RestaurantServerTest.java`, `mocked_client/src/main/resources/static/index.html`, `mocked_client/src/main/resources/static/app.css`, `mocked_client/src/main/resources/static/app.js`, `mocked_client/README.md`, this file.
+- **Follow-up.** 2026-11-25. The stand keeps several rooms per service, switches the open book, and can take a room off the stand.
+- **Follow-up prompt.**
+
+  > think the mocked server can toggle/create/remove between different rooms?
+
+- **Follow-up files.** `mocked_client/src/main/resources/static/index.html`, `mocked_client/src/main/resources/static/app.css`, `mocked_client/src/main/resources/static/app.js`, this file.
+- **Follow-up.** 2026-11-25. Reorganized the host stand layout: top bar, room tabs, room summary, walk-in form beside the waiting list, history, and connection footer.
+- **Follow-up prompt.**
+
+  > organize the layout more neat and modern and organized structured
+
+- **Follow-up files.** `mocked_client/src/main/resources/static/index.html`, `mocked_client/src/main/resources/static/app.css`, `mocked_client/src/main/resources/static/app.js`, this file.
+- **Follow-up.** 2026-11-25. Rooms and guest details now persist on the stand in `~/.cvnstack/mocked-client-book-<mode>.json` instead of only in browser storage.
+- **Follow-up prompt.**
+
+  > restart mocked client....I wanna see if those tested data persist for this client in cloud.... if not please fix accordingly
+
+- **Follow-up files.** `mocked_client/src/main/java/com/cvnstack/mockedclient/StandBookStore.java`, `mocked_client/src/main/java/com/cvnstack/mockedclient/RestaurantServer.java`, `mocked_client/src/main/java/com/cvnstack/mockedclient/CommandRunner.java`, `mocked_client/src/test/java/com/cvnstack/mockedclient/RestaurantServerTest.java`, `mocked_client/src/main/resources/static/app.js`, `mocked_client/README.md`, this file.
+
+### Pull request 54 — Rebase client instance, visualizer header, append-only usage log
+
+- **Completed.** 2026-11-25
+- **Tool.** Cursor
+- **Source.** https://cursor.com
+- **Model.** Grok 4.7
+- **Purpose.** Replay the client-instance and mocked-client commits onto current main, send `X-Client-Instance` from the visualizer, and make the AI usage log append-only so later tasks do not rewrite earlier lines.
+- **Prompt.**
+
+  > address comments in https://github.com/zk2343-lab/cvnstack/pull/54
+  >
+  > 1. clean up all closed feature branches
+  > 2. do a rebase on mainline for this X-client-instance (start fresh if too complex) and resolve conflict.
+  > 3. We need to modify ai-usage.md guideline to be append only. so there will be less conflict to resolve
+
+- **Files.** `src/main/resources/static/visualizer.js`, `docs/ai-usage.md`, `AGENTS.md`, `.gitattributes`, `.agents/skills/cvnstack-ai-documentation/SKILL.md`, `.agents/skills/cvnstack-ai-documentation/reference.md`, `.agents/skills/cvnstack-code-change/SKILL.md`
+- **Tokens.** not yet read from the product usage screen.
+
+
+### Pull request 54 — Keep both AI usage records
+
+- **Completed.** 2026-11-25
+- **Tool.** Cursor
+- **Source.** https://cursor.com
+- **Model.** Grok 4.7
+- **Purpose.** Resolve the `docs/ai-usage.md` conflict on pull request 54 by keeping the records already on main and the issue 40 and 41 records, then merge the pull request.
+- **Prompt.**
+
+  > https://github.com/zk2343-lab/cvnstack/pull/54
+  >
+  > resolve thids too
 
 - **Files.** `docs/ai-usage.md`
 - **Tokens.** not yet read from the product usage screen.

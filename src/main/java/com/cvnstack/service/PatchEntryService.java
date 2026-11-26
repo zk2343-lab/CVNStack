@@ -76,7 +76,7 @@ public class PatchEntryService {
       Entry desired = new Entry(current.id(), current.waitlistId(), current.name(),
           priorityChanged ? request.priority() : current.priority(),
           statusChanged ? request.status() : current.status(), current.insertedAt(),
-          calledAt, current.updatedAt());
+          calledAt, current.updatedAt(), current.clientInstance());
       Optional<Entry> updated = storage.updateEntryIfUnchanged(desired, current);
       if (updated.isPresent()) {
         return response(updated.get(), waitlist, true);
@@ -106,6 +106,6 @@ public class PatchEntryService {
           .orElseThrow(() -> ApiException.notFound("Entry is no longer waiting"));
     }
     return new PatchEntryResponse(entry.waitlistId(), entry.id(), entry.status(), entry.priority(),
-        entry.updatedAt(), position, estimate);
+        entry.updatedAt(), position, estimate, entry.clientInstance());
   }
 }
