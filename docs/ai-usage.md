@@ -674,3 +674,18 @@ Git merges this file with the union driver, so two entries appended at the end b
 - **Files.** `docs/gcp.md`, this file.
 - **Verification.** `gcloud redis instances describe cvnstack-redis --project=cvnstack --region=us-central1` confirmed `state: READY`, `host: 10.63.253.187`, `port: 6379`, `REDIS_7_2`, `BASIC`, `1 GB` on `projects/cvnstack/global/networks/cvnstack`.
 - **Tokens.** **13,490,507** incremental tokens since the Issue 42 snapshot (uncached input 808,280 + output 26,301 + cache read 12,655,926; cumulative local Antigravity session total 40,296,116 on 2026-11-26).
+
+### Issues 43, 45, 46 - Cloud SQL, Cloud Run deployment, and live mentor walkthrough
+
+- **Completed.** 2026-11-27
+- **Tool.** Google Antigravity
+- **Source.** https://antigravity.google
+- **Model.** Gemini (managed by Antigravity)
+- **Purpose.** Connect Private Services Access on VPC `cvnstack`, provision Cloud SQL PostgreSQL 16 (`cvnstack-pg`) with Secret Manager password (`cvnstack-db-password`), build and push the `linux/amd64` service image to Artifact Registry, deploy `cvnstack-service` to Cloud Run connected to Cloud SQL and Memorystore via `cvnstack-connector`, verify Flyway migrations and live end-to-end API calls, and document the architecture diagram, deployment commands, and mentor walkthrough in `docs/gcp.md` and `README.md`.
+- **Prompt.**
+
+  > Provision Cloud SQL PostgreSQL 16 on the `cvnstack` VPC with Secret Manager credentials for issue #43, build and push the service container to Artifact Registry, deploy `cvnstack-service` to Cloud Run for issue #45, verify Flyway migrations and the live API walkthrough, and document the deployment, architecture diagram, and mentor walkthrough for issue #46 in `docs/gcp.md` and `README.md`.
+
+- **Files.** `docs/gcp.md`, `README.md`, this file.
+- **Verification.** Cloud SQL `cvnstack-pg` (`10.20.0.3:5432`) reached `RUNNABLE`; VPC check confirmed PostgreSQL TCP and Memorystore Redis `+PONG`; Cloud Run revision `cvnstack-service-00001-47k` applied Flyway V1 and V2 migrations and served `https://cvnstack-service-xgl4tzechq-uc.a.run.app/health` with HTTP 200; live walkthrough verified create waitlist, two-instance entries, GET ranking, `serve-next`, `PATCH SERVED`, `DELETE`, and empty `204`.
+- **Tokens.** **16,031,348** incremental tokens since the Issue 44 snapshot (uncached input 965,401 + output 26,014 + cache read 15,039,933; cumulative local Antigravity session total 56,327,464 on 2026-11-27).
