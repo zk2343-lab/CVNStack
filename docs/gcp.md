@@ -96,7 +96,48 @@ Pending issue #43.
 
 ## 3. Memorystore for Redis (issue #44)
 
-Pending issue #44.
+### Instance details
+
+| Setting | Value |
+| --- | --- |
+| Instance name | `cvnstack-redis` |
+| Full resource | `projects/cvnstack/locations/us-central1/instances/cvnstack-redis` |
+| Region | `us-central1` |
+| Tier and size | `BASIC`, `1 GB` |
+| Redis version | `REDIS_7_2` |
+| VPC network | `projects/cvnstack/global/networks/cvnstack` (`DIRECT_PEERING`) |
+| Private host (`REDIS_HOST`) | `10.63.253.187` |
+| Port (`REDIS_PORT`) | `6379` |
+| TLS / AUTH | Disabled on private VPC (`REDIS_SSL=false`, no `REDIS_PASSWORD`) |
+| Verified state | `READY` (2026-11-26) |
+
+### Application configuration keys
+
+The service reads the same Redis configuration keys already defined in `src/main/resources/application.properties` (no code change required):
+
+| Environment variable | Spring property | Value for `cvnstack-redis` |
+| --- | --- | --- |
+| `REDIS_HOST` | `spring.data.redis.host` | `10.63.253.187` |
+| `REDIS_PORT` | `spring.data.redis.port` | `6379` |
+| `REDIS_SSL` | `spring.data.redis.ssl.enabled` | `false` |
+
+### Reproducible commands
+
+```bash
+gcloud redis instances create cvnstack-redis \
+  --project=cvnstack \
+  --region=us-central1 \
+  --tier=basic \
+  --size=1 \
+  --redis-version=redis_7_2 \
+  --network=projects/cvnstack/global/networks/cvnstack \
+  --connect-mode=DIRECT_PEERING
+
+gcloud redis instances describe cvnstack-redis \
+  --project=cvnstack \
+  --region=us-central1 \
+  --format="table(name,host,port,state,redisVersion,tier,memorySizeGb,authorizedNetwork)"
+```
 
 ## 4. Cloud Run deployment (issue #45)
 
