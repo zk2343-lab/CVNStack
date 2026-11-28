@@ -242,6 +242,12 @@ jdbc:postgresql:///cvnstack?cloudSqlInstance=PROJECT:REGION:INSTANCE&socketFacto
 the password from Secret Manager. Memorystore still uses `REDIS_HOST` and
 `REDIS_PORT`.
 
+The live managed deployment (Cloud Run + Cloud SQL PostgreSQL 16 + Memorystore
+Redis 7.2 + Secret Manager + Serverless VPC Access) is hosted at
+`https://cvnstack-service-xgl4tzechq-uc.a.run.app`. Setup details, deployment
+commands, architecture overview, and the repeatable mentor walkthrough live in
+[`docs/gcp.md`](docs/gcp.md).
+
 ### Compute Engine starter
 
 `infra/` is a Pulumi program that creates one Compute Engine VM and runs this
